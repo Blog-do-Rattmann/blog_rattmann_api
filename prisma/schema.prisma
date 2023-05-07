@@ -9,3 +9,81 @@ datasource db {
   provider = "mysql"
   url      = env("DATABASE_URL")
 }
+
+model Usuario {
+  id Int @id @default(autoincrement())
+  nome String @db.VarChar(100)
+  nome_usuario String @db.VarChar(25)
+  email String @db.VarChar(150)
+  senha String @db.VarChar(255)
+  data_nascimento DateTime
+  nivel_acesso Permissoes @default(leitor)
+  estado_conta EstadoConta @default(ativo)
+  criado_em DateTime @default(now())
+  post Post[]
+  comentario Comentario[]
+
+  @@unique([nome_usuario, email])
+  @@map("usuarios")
+}
+
+model Post {
+  id Int @id @default(autoincrement())
+  titulo String?
+  conteudo String?
+  rascunho Boolean @default(false)
+  exibir Boolean @default(true)
+  data_publicacao DateTime @default(now())
+  data_edicao DateTime? @default(now())
+  editado_por String?
+  autorId Int
+  autor Usuario @relation(fields: [autorId], references: [id])
+  categoria Categoria[]
+  comentario Comentario[]
+
+  @@map("posts")
+}
+
+model Categoria {
+  id Int @id @default(autoincrement())
+  nome String
+  descricao String
+  publicacao Post[]
+
+  @@map("categorias")
+}
+
+model Comentario {
+  id Int @id @default(autoincrement())
+  conteudo String
+  data_publicacao DateTime @default(now())
+  data_edicao DateTime? @default(now())
+  avaliacao Avaliacao[]
+  autorId Int
+  publicacaoId Int
+  autor Usuario @relation(fields: [autorId], references: [id])
+  publicacao Post @relation(fields: [publicacaoId], references: [id])
+
+  @@map("comentarios")
+}
+
+model Avaliacao {
+  id Int @id @default(autoincrement())
+  notas Int
+  comentarioId Int
+  comentario Comentario @relation(fields: [comentarioId], references: [id])
+
+  @@map("avaliacoes")
+}
+
+enum Permissoes {
+  admin
+  autor
+  leitor
+}
+
+enum EstadoConta {
+  ativo
+  inativo
+  banido
+}
