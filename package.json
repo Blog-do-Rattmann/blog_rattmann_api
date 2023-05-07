@@ -1,0 +1,22 @@
+{
+  "name": "blog_rattmann_api",
+  "version": "1.0.0",
+  "description": "Uma API para aprendizagem",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/gustavorattmann/blog_rattmann_api.git"
+  },
+  "keywords": [
+    "blog"
+  ],
+  "author": "Gustavo Rattmann",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/gustavorattmann/blog_rattmann_api/issues"
+  },
+  "homepage": "https://github.com/gustavorattmann/blog_rattmann_api#readme"
+}
