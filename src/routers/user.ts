@@ -3,6 +3,6 @@ import user from '../controllers/user';
 
 const userRoutes = Router();
 
-userRoutes.get('/cadastrar', user.register);
+userRoutes.post('/cadastrar', user.register);
 
 export default userRoutes;
