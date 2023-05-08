@@ -13,29 +13,28 @@ datasource db {
 model Usuario {
   id Int @id @default(autoincrement())
   nome String @db.VarChar(100)
-  nome_usuario String @db.VarChar(25)
-  email String @db.VarChar(150)
+  nome_usuario String @db.VarChar(25) @unique
+  email String @db.VarChar(150) @unique
   senha String @db.VarChar(255)
-  data_nascimento DateTime
-  nivel_acesso Permissoes @default(leitor)
+  data_nascimento DateTime @db.Date()
   estado_conta EstadoConta @default(ativo)
   criado_em DateTime @default(now())
+  nivel_acesso Permissoes[]
   post Post[]
   comentario Comentario[]
-
-  @@unique([nome_usuario, email])
+  
   @@map("usuarios")
 }
 
 model Post {
   id Int @id @default(autoincrement())
-  titulo String?
-  conteudo String?
+  titulo String? @db.VarChar(100)
+  conteudo String? @db.MediumText()
   rascunho Boolean @default(false)
   exibir Boolean @default(true)
   data_publicacao DateTime @default(now())
   data_edicao DateTime? @default(now())
-  editado_por String?
+  editado_por String? @db.VarChar(100)
   autorId Int
   autor Usuario @relation(fields: [autorId], references: [id])
   categoria Categoria[]
@@ -46,8 +45,8 @@ model Post {
 
 model Categoria {
   id Int @id @default(autoincrement())
-  nome String
-  descricao String
+  nome String @db.VarChar(100)
+  descricao String @db.VarChar(100)
   publicacao Post[]
 
   @@map("categorias")
@@ -55,7 +54,7 @@ model Categoria {
 
 model Comentario {
   id Int @id @default(autoincrement())
-  conteudo String
+  conteudo String @db.Text()
   data_publicacao DateTime @default(now())
   data_edicao DateTime? @default(now())
   avaliacao Avaliacao[]
@@ -76,10 +75,13 @@ model Avaliacao {
   @@map("avaliacoes")
 }
 
-enum Permissoes {
-  admin
-  autor
-  leitor
+model Permissoes {
+  id Int @id @default(autoincrement())
+  nome String @db.VarChar(30)
+  descricao String @db.TinyText()
+  usuario Usuario[]
+
+  @@map("permissoes")
 }
 
 enum EstadoConta {
