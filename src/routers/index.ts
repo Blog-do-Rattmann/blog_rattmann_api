@@ -1,15 +1,14 @@
 import { Router } from "express";
+import userRoutes from "./user";
 
-export const routes = Router();
+const routes = Router();
 
-routes.get('/', (req, res) => {
-    res
-    .status(200)
-    .send('Olá mundo!');
-});
+routes.use('/usuario', userRoutes);
 
 routes.all('*', (req, res) => {
     res
     .status(404)
     .send('Página não encontrada!');
 });
+
+export { routes };
