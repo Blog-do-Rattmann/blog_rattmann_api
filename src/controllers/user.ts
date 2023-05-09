@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { PrismaClient } from '@prisma/client';
+import moment from 'moment';
 
 const prisma = new PrismaClient();
 
@@ -138,6 +139,74 @@ const register = async (req: Request, res: Response) => {
     }
 }
 
+const profile = async (req: Request, res: Response) => {
+    await showProfile()
+    .then(async (resposta) => {
+        await prisma.$disconnect();
+
+        const dataNascimento = moment(resposta.data_nascimento)
+        .utc()
+        .format('DD/MM/YYYY');
+
+        const dataCriacao = moment(resposta.criado_em)
+        .utc()
+        .format('DD/MM/YYYY HH:mm:ss');
+
+        const user = {
+            id: resposta.id,
+            nome: resposta.nome,
+            nome_usuario: resposta.nome_usuario,
+            email: resposta.email,
+            data_nascimento: dataNascimento,
+            estado_conta: resposta.estado_conta,
+            data_criacao: dataCriacao
+        }
+
+        return res
+        .status(200)
+        .send(user);
+    })
+    .catch(async (err) => {
+        console.error(err);
+        await prisma.$disconnect();
+
+        let status = 500;
+        let mensagem = 'Ocorreu um erro em nosso servidor.<br\>Tente novamente mais tarde!';
+
+        if (err.code === 'P2025') {
+            status = 404;
+            mensagem = 'Usuário não encontrado!';
+        }
+
+        return res
+            .status(status)
+            .send(mensagem);
+    });
+
+    async function showProfile() {
+        const id = req.params.id;
+        let idNumerico: number | undefined = Number(id);
+
+        if (isNaN(idNumerico)) idNumerico = undefined;
+
+        const user = prisma.usuario.findFirstOrThrow({
+            where: {
+                OR: [
+                    {
+                        id: idNumerico
+                    },
+                    {
+                        nome_usuario: id
+                    }
+                ]
+            }
+        });
+
+        return user;
+    }
+}
+
 export default {
-    register
+    register,
+    profile
 }
