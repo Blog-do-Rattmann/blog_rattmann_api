@@ -141,24 +141,24 @@ const register = async (req: Request, res: Response) => {
 
 const profile = async (req: Request, res: Response) => {
     await showProfile()
-    .then(async (resposta) => {
+    .then(async (response) => {
         await prisma.$disconnect();
 
-        const dataNascimento = moment(resposta.data_nascimento)
+        const dataNascimento = moment(response.data_nascimento)
         .utc()
         .format('DD/MM/YYYY');
 
-        const dataCriacao = moment(resposta.criado_em)
+        const dataCriacao = moment(response.criado_em)
         .utc()
         .format('DD/MM/YYYY HH:mm:ss');
 
         const user = {
-            id: resposta.id,
-            nome: resposta.nome,
-            nome_usuario: resposta.nome_usuario,
-            email: resposta.email,
+            id: response.id,
+            nome: response.nome,
+            nome_usuario: response.nome_usuario,
+            email: response.email,
             data_nascimento: dataNascimento,
-            estado_conta: resposta.estado_conta,
+            estado_conta: response.estado_conta,
             data_criacao: dataCriacao
         }
 
@@ -206,7 +206,72 @@ const profile = async (req: Request, res: Response) => {
     }
 }
 
+const list = async (req: Request, res: Response) => {
+    await showList()
+    .then(async (response) => {
+        await prisma.$disconnect();
+        
+        if (response.length < 1) {
+            return res
+            .status(404)
+            .send('Nenhum usuário encontrado!');
+        }
+
+        const listUsers = dataProcessing(response);
+
+        return res
+        .status(200)
+        .send(listUsers);
+    })
+    .catch(async (err) => {
+        console.error(err);
+        await prisma.$disconnect();
+
+        let status = 500;
+        let mensagem = 'Ocorreu um erro em nosso servidor.<br\>Tente novamente mais tarde!';
+
+        return res
+            .status(status)
+            .send(mensagem);
+    });
+
+    async function showList() {
+        const users = prisma.usuario.findMany();
+
+        return users;
+    }
+
+    function dataProcessing(users: any) {
+        let listUsers: {}[] = [];
+
+        for (const user of users) {
+            const dataNascimento = moment(user.data_nascimento)
+            .utc()
+            .format('DD/MM/YYYY');
+
+            const dataCriacao = moment(user.criado_em)
+            .utc()
+            .format('DD/MM/YYYY HH:mm:ss');
+
+            const objectUser = {
+                id: user.id,
+                nome: user.nome,
+                nome_usuario: user.nome_usuario,
+                email: user.email,
+                data_nascimento: dataNascimento,
+                estado_conta: user.estado_conta,
+                data_criacao: dataCriacao
+            }
+
+            listUsers.push(objectUser);
+        }
+
+        return listUsers;
+    }
+}
+
 export default {
     register,
-    profile
+    profile,
+    list
 }
