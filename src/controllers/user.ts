@@ -2,6 +2,14 @@ import { Request, Response, NextFunction } from 'express';
 import { PrismaClient } from '@prisma/client';
 import moment from 'moment';
 
+import { exceptionUserNotFound, exceptionFieldInvalid } from '../utils/exceptions';
+import {
+    validateData,
+    validateName,
+    validateUsername,
+    validateEmail
+} from '../utils/validate';
+
 const prisma = new PrismaClient();
 
 const register = async (req: Request, res: Response) => {
@@ -270,8 +278,108 @@ const list = async (req: Request, res: Response) => {
     }
 }
 
+const update = async (req: Request, res: Response) => {
+    await updateUser()
+    .then(async (response) => {
+        await prisma.$disconnect();
+
+        if (response !== null) console.log('Teste')
+    })
+    .catch(async (err) => {
+        console.error(err);
+        await prisma.$disconnect();
+
+        let status = 500;
+        let mensagem = 'Ocorreu um erro em nosso servidor.<br\>Tente novamente mais tarde!';
+
+        return res
+            .status(status)
+            .send(mensagem);
+    });
+
+    async function updateUser() {
+        const id = req.params.id;
+        
+        const user = await verifyUserExists(id);
+
+        if (user === null) return exceptionUserNotFound(res);
+
+        const data = dataProcessing();
+
+        if (data !== null) {
+            const updated = await prisma.usuario.update({
+                where: {
+                    id: user.id
+                },
+                data: {
+    
+                }
+            });
+
+            return true;
+        }
+
+        return null;
+
+    }
+
+    function dataProcessing() {
+        if (!validateData(req.body.nome) || !validateName(req.body.nome)) return exceptionFieldInvalid(res, 'Nome está preenchido incorretamente!');
+        if (!validateData(req.body.nome_usuario) || !validateUsername(req.body.nome_usuario)) return exceptionFieldInvalid(res, 'Nome de usuário está preenchido incorretamente!');
+        if (!validateData(req.body.email) || !validateEmail(req.body.email)) return exceptionFieldInvalid(res, 'E-mail está preenchido incorretamente!');
+
+        // var birthday = adjustBirthday(req.body.data_nascimento);
+        // var levelAccess = await adjustLevelAccess(req.body.nivel_acesso);
+
+        // if (birthday === null) {
+        //     res.status(400).send('Data de nascimento está incorreta!');
+
+        //     return null;
+        // }
+
+        // if (levelAccess.length < 1) {
+        //     res.status(400).send('Nível de acesso selecionado está incorreto!');
+
+        //     return null;
+        // }
+        
+        // const data = {
+        //     name: req.body.nome,
+        //     username: req.body.nome_usuario,
+        //     email: req.body.email,
+        //     password: req.body.senha,
+        //     birthday: birthday,
+        //     level_access: levelAccess
+        // }
+
+        // return data;
+    }
+}
+
+async function verifyUserExists(id: string) {
+    let idNumerico: number | undefined = Number(id);
+
+    if (isNaN(idNumerico)) idNumerico = undefined;
+
+    const user = prisma.usuario.findFirst({
+        where: {
+            OR: [
+                {
+                    id: idNumerico
+                },
+                {
+                    nome_usuario: id
+                }
+            ]
+        }
+    });
+
+    return user;
+}
+
 export default {
     register,
     profile,
-    list
+    list,
+    update
 }
