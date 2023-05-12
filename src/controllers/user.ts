@@ -7,8 +7,10 @@ import {
     validateData,
     validateName,
     validateUsername,
-    validateEmail
+    validateEmail,
+    validateDate
 } from '../utils/validate';
+import { adjustBirthday } from '../utils/handle';
 
 const prisma = new PrismaClient();
 
@@ -307,14 +309,14 @@ const update = async (req: Request, res: Response) => {
         const data = dataProcessing();
 
         if (data !== null) {
-            const updated = await prisma.usuario.update({
-                where: {
-                    id: user.id
-                },
-                data: {
+            // const updated = await prisma.usuario.update({
+            //     where: {
+            //         id: user.id
+            //     },
+            //     data: {
     
-                }
-            });
+            //     }
+            // });
 
             return true;
         }
@@ -324,18 +326,14 @@ const update = async (req: Request, res: Response) => {
     }
 
     function dataProcessing() {
+        const birthday = adjustBirthday(req.body.data_nascimento);
+
         if (!validateData(req.body.nome) || !validateName(req.body.nome)) return exceptionFieldInvalid(res, 'Nome está preenchido incorretamente!');
         if (!validateData(req.body.nome_usuario) || !validateUsername(req.body.nome_usuario)) return exceptionFieldInvalid(res, 'Nome de usuário está preenchido incorretamente!');
         if (!validateData(req.body.email) || !validateEmail(req.body.email)) return exceptionFieldInvalid(res, 'E-mail está preenchido incorretamente!');
+        if (!birthday || !validateDate(birthday)) return exceptionFieldInvalid(res, 'Data de nascimento preenchida incorretamente!');
 
-        // var birthday = adjustBirthday(req.body.data_nascimento);
         // var levelAccess = await adjustLevelAccess(req.body.nivel_acesso);
-
-        // if (birthday === null) {
-        //     res.status(400).send('Data de nascimento está incorreta!');
-
-        //     return null;
-        // }
 
         // if (levelAccess.length < 1) {
         //     res.status(400).send('Nível de acesso selecionado está incorreto!');
@@ -343,16 +341,15 @@ const update = async (req: Request, res: Response) => {
         //     return null;
         // }
         
-        // const data = {
-        //     name: req.body.nome,
-        //     username: req.body.nome_usuario,
-        //     email: req.body.email,
-        //     password: req.body.senha,
-        //     birthday: birthday,
-        //     level_access: levelAccess
-        // }
+        const data = {
+            name: req.body.nome,
+            username: req.body.nome_usuario,
+            email: req.body.email,
+            birthday: birthday,
+            // level_access: levelAccess
+        }
 
-        // return data;
+        return data;
     }
 }
 
