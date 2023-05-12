@@ -1,3 +1,5 @@
+import moment from 'moment';
+
 const validateData = (value: any) => {
     if ((value === null || value === undefined) || (typeof value === 'string' && value.trim() === '')) return false;
 
@@ -22,9 +24,21 @@ const validateEmail = (email: string) => {
     return false;
 }
 
+const validateDate = (date: any) => {
+    const birthday = moment(date).utc().format('YYYY-MM-DD');
+    const dateNow = moment().subtract(100, 'years').format('YYYY-MM-DD');
+
+    if (!moment(birthday).isBefore(dateNow)) {
+        return true;
+    }
+
+    return false;
+}
+
 export {
     validateData,
     validateName,
     validateUsername,
-    validateEmail
+    validateEmail,
+    validateDate
 }
