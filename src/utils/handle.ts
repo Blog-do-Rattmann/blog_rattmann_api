@@ -1,4 +1,6 @@
-import moment from 'moment';
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
 
 import { validateData } from '../utils/validate';
 
@@ -31,6 +33,57 @@ const adjustBirthday = (date: string) => {
     return false;
 }
 
+const adjustLevelAccess = async (levels: []) => {
+    if (Array.isArray(levels)) {
+        if (levels.length > 0) {
+            let listLevels: { id: number }[] = [];
+    
+            for (let level of levels) {
+                const levelNumber = Number(level);
+
+                if (!isNaN(levelNumber)) {
+                    const permissions = await prisma.permissoes.findFirst({
+                        where: {
+                            id: levelNumber
+                        }
+                    });
+        
+                    if (permissions !== null) {
+                        let objectLevel = {
+                            id: levelNumber
+                        }
+        
+                        listLevels.push(objectLevel);
+                    }
+                }
+            }
+    
+            return listLevels;
+        }
+    }
+
+    return [];
+}
+
+const removeAllLevels = async (id: string) => {
+    let idNumber = Number(id);
+
+    if (!isNaN(idNumber)) {
+        await prisma.usuario.update({
+            where: {
+                id: idNumber
+            },
+            data: {
+                nivel_acesso: {
+                    set: []
+                }
+            }
+        });
+    }
+}
+
 export {
-    adjustBirthday
+    adjustBirthday,
+    adjustLevelAccess,
+    removeAllLevels
 }
