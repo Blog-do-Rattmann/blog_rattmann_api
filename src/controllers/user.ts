@@ -10,7 +10,7 @@ import {
     validateEmail,
     validateDate
 } from '../utils/validate';
-import { adjustBirthday } from '../utils/handle';
+import { adjustBirthday, adjustLevelAccess, removeAllLevels } from '../utils/handle';
 
 const prisma = new PrismaClient();
 
@@ -127,13 +127,13 @@ const register = async (req: Request, res: Response) => {
             let listLevels: { id: number }[] = [];
 
             for (let level of levels) {
-                const permissao = await prisma.permissoes.findFirst({
+                const permissions = await prisma.permissoes.findFirst({
                     where: {
                         id: level
                     }
                 });
 
-                if (permissao !== null) {
+                if (permissions !== null) {
                     let objectLevel = {
                         id: level
                     }
@@ -195,15 +195,15 @@ const profile = async (req: Request, res: Response) => {
 
     async function showProfile() {
         const id = req.params.id;
-        let idNumerico: number | undefined = Number(id);
+        let idNumber: number | undefined = Number(id);
 
-        if (isNaN(idNumerico)) idNumerico = undefined;
+        if (isNaN(idNumber)) idNumber = undefined;
 
         const user = prisma.usuario.findFirstOrThrow({
             where: {
                 OR: [
                     {
-                        id: idNumerico
+                        id: idNumber
                     },
                     {
                         nome_usuario: id
@@ -285,7 +285,11 @@ const update = async (req: Request, res: Response) => {
     .then(async (response) => {
         await prisma.$disconnect();
 
-        if (response !== null) console.log('Teste')
+        if (response !== null) {
+            return res
+            .status(200)
+            .send('Usuário alterado com sucesso!');
+        }
     })
     .catch(async (err) => {
         console.error(err);
@@ -300,69 +304,121 @@ const update = async (req: Request, res: Response) => {
     });
 
     async function updateUser() {
-        const id = req.params.id;
+        const { id } = req.params;
         
         const user = await verifyUserExists(id);
 
         if (user === null) return exceptionUserNotFound(res);
 
-        const data = dataProcessing();
+        const data = await dataProcessing(id);
 
         if (data !== null) {
-            // const updated = await prisma.usuario.update({
-            //     where: {
-            //         id: user.id
-            //     },
-            //     data: {
-    
-            //     }
-            // });
+            const updated = await prisma.usuario.update({
+                where: {
+                    id: user.id
+                },
+                data: data
+            });
 
-            return true;
+            return updated;
         }
 
         return null;
-
     }
 
-    function dataProcessing() {
-        const birthday = adjustBirthday(req.body.data_nascimento);
+    async function dataProcessing(id: string) {
+        const fields = req.body;
 
-        if (!validateData(req.body.nome) || !validateName(req.body.nome)) return exceptionFieldInvalid(res, 'Nome está preenchido incorretamente!');
-        if (!validateData(req.body.nome_usuario) || !validateUsername(req.body.nome_usuario)) return exceptionFieldInvalid(res, 'Nome de usuário está preenchido incorretamente!');
-        if (!validateData(req.body.email) || !validateEmail(req.body.email)) return exceptionFieldInvalid(res, 'E-mail está preenchido incorretamente!');
-        if (!birthday || !validateDate(birthday)) return exceptionFieldInvalid(res, 'Data de nascimento preenchida incorretamente!');
+        let hasFieldIncorrect = true;
+        let nameFieldIncorrect = '';
 
-        // var levelAccess = await adjustLevelAccess(req.body.nivel_acesso);
-
-        // if (levelAccess.length < 1) {
-        //     res.status(400).send('Nível de acesso selecionado está incorreto!');
-
-        //     return null;
-        // }
+        for (const field in fields) {
+            switch (field) {
+                case 'nome':
+                    hasFieldIncorrect = false;
+                break;
+                case 'nome_usuario':
+                    hasFieldIncorrect = true;
+                break;
+                case 'email':
+                    hasFieldIncorrect = false;
+                break;
+                case 'data_nascimento':
+                    hasFieldIncorrect = false;
+                break;
+                case 'nivel_acesso':
+                    hasFieldIncorrect = false;
+                break;
+                default:
+                    nameFieldIncorrect = field;
+            }
+        }
         
-        const data = {
-            name: req.body.nome,
-            username: req.body.nome_usuario,
-            email: req.body.email,
-            birthday: birthday,
-            // level_access: levelAccess
+        if (!hasFieldIncorrect) {
+            interface IData {
+                nome: string,
+                nome_usuario: string,
+                email: string,
+                data_nascimento: Date,
+                nivel_acesso: {
+                    connect: { id: number; }[]
+                }
+            }
+
+            const data = {} as IData;
+
+            const {
+                nome,
+                nome_usuario,
+                email,
+                data_nascimento,
+                nivel_acesso
+            } = fields;
+    
+            const birthday = adjustBirthday(data_nascimento);
+            const levelAccess = await adjustLevelAccess(nivel_acesso);
+    
+            if (validateData(nome)) data.nome = nome;
+            if (validateData(nome_usuario)) data.nome_usuario = nome_usuario;
+            if (validateData(email)) data.email = email;
+            if (birthday !== false) data.data_nascimento = birthday;
+            if (levelAccess.length > 0) {
+                await removeAllLevels(id);
+    
+                const level = {
+                    connect: levelAccess
+                }
+    
+                data.nivel_acesso = level;
+            }
+    
+            // if (!validateData(req.body.nome) || !validateName(req.body.nome)) return exceptionFieldInvalid(res, 'Nome está preenchido incorretamente!');
+            // if (!validateData(req.body.nome_usuario) || !validateUsername(req.body.nome_usuario)) return exceptionFieldInvalid(res, 'Nome de usuário está preenchido incorretamente!');
+            // if (!validateData(req.body.email) || !validateEmail(req.body.email)) return exceptionFieldInvalid(res, 'E-mail está preenchido incorretamente!');
+            // if (!birthday || !validateDate(birthday)) return exceptionFieldInvalid(res, 'Data de nascimento preenchida incorretamente!');
+            // if (levelAccess.length < 1) return exceptionFieldInvalid(res, 'Nível de acesso selecionado está incorreto!');
+    
+            return data;
         }
 
-        return data;
+        res
+        .status(400)
+        .send(`Campo ${nameFieldIncorrect} não existe!`);
+
+        return null;
     }
 }
 
 async function verifyUserExists(id: string) {
-    let idNumerico: number | undefined = Number(id);
+    let idNumber: number | undefined = Number(id);
 
-    if (isNaN(idNumerico)) idNumerico = undefined;
+    if (isNaN(idNumber)) idNumber = undefined;
 
     const user = prisma.usuario.findFirst({
         where: {
             OR: [
                 {
-                    id: idNumerico
+                    id: idNumber
                 },
                 {
                     nome_usuario: id
