@@ -390,6 +390,54 @@ const update = async (req: Request, res: Response) => {
     }
 }
 
+const remove = async (req: Request, res: Response) => {
+    await removeUser()
+    .then(async () => {
+        await prisma.$disconnect();
+
+        return res
+            .status(200)
+            .send('Usuário deletado com sucesso!');
+    })
+    .catch(async (err) => {
+        console.error(err);
+        await prisma.$disconnect();
+
+        let status = 500;
+        let mensagem = 'Ocorreu um erro em nosso servidor.<br\>Tente novamente mais tarde!';
+
+        if (err.code === 'P2025') {
+            status = 404;
+            mensagem = 'Usuário não encontrado!';
+        }
+
+        return res
+            .status(status)
+            .send(mensagem);
+    });
+
+    async function removeUser() {
+        const { id } = req.params;
+        let idNumber: number | undefined = Number(id);
+        if (isNaN(idNumber)) idNumber = undefined;
+
+        await removeAllLevels(id);
+
+        await prisma.usuario.deleteMany({
+            where: {
+                OR: [
+                    {
+                        id: idNumber
+                    },
+                    {
+                        nome_usuario: id
+                    }
+                ]
+            }
+        });
+    }
+}
+
 async function verifyUserExists(id: string) {
     let idNumber: number | undefined = Number(id);
 
@@ -451,5 +499,6 @@ export default {
     register,
     profile,
     list,
-    update
+    update,
+    remove
 }
