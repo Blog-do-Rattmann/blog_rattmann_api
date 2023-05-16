@@ -19,7 +19,9 @@ const validateUsername = (username: string) => {
 }
 
 const validateEmail = (email: string) => {
-    if (/^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/.test(email)) return true;
+    const regexEmail = /^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/;
+
+    if (regexEmail.test(email)) return true;
 
     return false;
 }
