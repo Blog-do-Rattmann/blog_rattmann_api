@@ -8,7 +8,8 @@ import {
     validateName,
     validateUsername,
     validateEmail,
-    validateDate
+    validateDate,
+    validatePassword
 } from '../utils/validate';
 import {
     adjustBirthday,
@@ -438,7 +439,97 @@ const remove = async (req: Request, res: Response) => {
     }
 }
 
-async function verifyUserExists(id: string) {
+const changePassword = async (req: Request, res: Response) => {
+    await newPassword()
+    .then(async (response) => {
+        await prisma.$disconnect();
+
+        if (response !== null) {
+            return res
+                .status(200)
+                .send('Senha alterada com sucesso!');
+        }
+    })
+    .catch(async (err) => {
+        console.error(err);
+        await prisma.$disconnect();
+
+        let status = 500;
+        let mensagem = 'Ocorreu um erro em nosso servidor.<br\>Tente novamente mais tarde!';
+
+        return res
+            .status(status)
+            .send(mensagem);
+    });
+
+    async function newPassword() {
+        const { id } = req.params;
+        
+        const user = await verifyUserExists(id);
+
+        if (user === null) return exceptionUserNotFound(res);
+
+        const data = await dataProcessing(id, user);
+
+        if (data !== null) {
+            const changedPassword = await prisma.usuario.update({
+                where: {
+                    id: user.id
+                },
+                data: data
+            });
+
+            return changedPassword;
+        }
+
+        return null;
+    }
+
+    async function dataProcessing(id: string, user: any) {
+        const fields = req.body;
+
+        const { hasFieldIncorrect, nameFieldIncorrect } = verifyFieldIncorrect(fields, 'change-password');
+        
+        if (!hasFieldIncorrect) {
+            interface IData { senha: string };
+
+            const data = {} as IData;
+
+            const {
+                senha_atual,
+                nova_senha
+            } = fields;
+
+            if (!validatePassword(senha_atual) || user.senha !== senha_atual) {
+                res
+                .status(400)
+                .send('Senha atual não confere!');
+
+                return null;
+            }
+
+            if (!validatePassword(nova_senha)) {
+                res
+                .status(400)
+                .send('Nova senha não está no padrão correto!<br\>Precisa de pelo menos 8 caractes, uma letra minúscula, uma maiúscula, um número e um caracter especial.');
+
+                return null;
+            }
+
+            data.senha = nova_senha;
+
+            return data;
+        }
+
+        res
+        .status(400)
+        .send(`Campo ${nameFieldIncorrect} não existe!`);
+
+        return null;
+    }
+}
+
+const verifyUserExists = async (id: string) => {
     let idNumber: number | undefined = Number(id);
 
     if (isNaN(idNumber)) idNumber = undefined;
@@ -464,31 +555,41 @@ const verifyFieldIncorrect = (fields: {}, typeRequest: string = 'register') => {
     let nameFieldIncorrect = '';
 
     for (const field in fields) {
-        switch (field) {
-            case 'nome':
+        if (typeRequest === 'change-password') {
+            if (field === 'senha_atual') {
                 hasFieldIncorrect = false;
-            break;
-            case 'nome_usuario':
-                hasFieldIncorrect = true;
-            break;
-            case 'email':
+            } else if (field === 'nova_senha') {
                 hasFieldIncorrect = false;
-            break;
-            case 'data_nascimento':
-                hasFieldIncorrect = false;
-            break;
-            case 'nivel_acesso':
-                hasFieldIncorrect = false;
-            break;
-            default:
+            } else {
                 nameFieldIncorrect = field;
-
-                if (typeRequest === 'register') {
-                    if (field === 'senha') {
-                        hasFieldIncorrect = false;
-                        nameFieldIncorrect = '';
+            }
+        } else {
+            switch (field) {
+                case 'nome':
+                    hasFieldIncorrect = false;
+                break;
+                case 'nome_usuario':
+                    hasFieldIncorrect = true;
+                break;
+                case 'email':
+                    hasFieldIncorrect = false;
+                break;
+                case 'data_nascimento':
+                    hasFieldIncorrect = false;
+                break;
+                case 'nivel_acesso':
+                    hasFieldIncorrect = false;
+                break;
+                default:
+                    nameFieldIncorrect = field;
+    
+                    if (typeRequest === 'register') {
+                        if (field === 'senha') {
+                            hasFieldIncorrect = false;
+                            nameFieldIncorrect = '';
+                        }
                     }
-                }
+            }
         }
     }
 
@@ -500,5 +601,6 @@ export default {
     profile,
     list,
     update,
-    remove
+    remove,
+    changePassword
 }
