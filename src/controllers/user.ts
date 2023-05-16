@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { PrismaClient } from '@prisma/client';
 import moment from 'moment';
+import argon2 from 'argon2';
 
 import { exceptionUserNotFound, exceptionFieldInvalid } from '../utils/exceptions';
 import {
@@ -21,12 +22,14 @@ const prisma = new PrismaClient();
 
 const register = async (req: Request, res: Response) => {
     await createUser()
-    .then(async () => {
+    .then(async (response) => {
         await prisma.$disconnect();
 
-        return res
-        .status(200)
-        .send('Cadastro realizado com sucesso!');
+        if (response !== null) {
+            return res
+            .status(200)
+            .send('Cadastro realizado com sucesso!');
+        }
     })
     .catch(async (err) => {
         console.error(err);
@@ -69,9 +72,11 @@ const register = async (req: Request, res: Response) => {
                     }
                 }
             });
+
+            return user;
         }
 
-        return false;
+        return null;
     }
 
     async function dataProcessing() {
@@ -89,12 +94,22 @@ const register = async (req: Request, res: Response) => {
 
             return null;
         }
+
+        if (!validatePassword(req.body.senha)) {
+            res
+            .status(400)
+            .send('Senha não está no padrão correto!<br\>Precisa de pelo menos 8 caractes, uma letra minúscula, uma maiúscula, um número e um caracter especial.');
+
+            return null;
+        }
+
+        const hashPassword = await argon2.hash(req.body.senha);
         
         const data = {
             name: req.body.nome,
             username: req.body.nome_usuario,
             email: req.body.email,
-            password: req.body.senha,
+            password: hashPassword,
             birthday: birthday,
             level_access: levelAccess
         }
@@ -500,7 +515,7 @@ const changePassword = async (req: Request, res: Response) => {
                 nova_senha
             } = fields;
 
-            if (!validatePassword(senha_atual) || user.senha !== senha_atual) {
+            if (!validatePassword(senha_atual) || !await argon2.verify(user.senha, senha_atual)) {
                 res
                 .status(400)
                 .send('Senha atual não confere!');
@@ -516,7 +531,9 @@ const changePassword = async (req: Request, res: Response) => {
                 return null;
             }
 
-            data.senha = nova_senha;
+            const hashPassword = await argon2.hash(nova_senha);
+
+            data.senha = hashPassword;
 
             return data;
         }
