@@ -61,16 +61,7 @@ const register = async (req: Request, res: Response) => {
 
         if (data !== null) {
             const user = await prisma.usuario.create({
-                data: {
-                    nome: data.name,
-                    nome_usuario: data.username,
-                    email: data.email,
-                    senha: data.password,
-                    data_nascimento: data.birthday,
-                    nivel_acesso: {
-                        connect: data.level_access
-                    }
-                }
+                data: data
             });
 
             return user;
@@ -80,92 +71,51 @@ const register = async (req: Request, res: Response) => {
     }
 
     async function dataProcessing() {
-        var birthday = adjustBirthday(req.body.data_nascimento);
-        var levelAccess = await adjustLevelAccess(req.body.nivel_acesso);
+        const fields = req.body;
 
-        if (birthday === null) {
-            res.status(400).send('Data de nascimento está incorreta!');
-
-            return null;
-        }
-
-        if (levelAccess.length < 1) {
-            res.status(400).send('Nível de acesso selecionado está incorreto!');
-
-            return null;
-        }
-
-        if (!validatePassword(req.body.senha)) {
-            res
-            .status(400)
-            .send('Senha não está no padrão correto!<br\>Precisa de pelo menos 8 caractes, uma letra minúscula, uma maiúscula, um número e um caracter especial.');
-
-            return null;
-        }
-
-        const hashPassword = await argon2.hash(req.body.senha);
+        const { hasFieldIncorrect, nameFieldIncorrect } = verifyFieldIncorrect(fields);
         
-        const data = {
-            name: req.body.nome,
-            username: req.body.nome_usuario,
-            email: req.body.email,
-            password: hashPassword,
-            birthday: birthday,
-            level_access: levelAccess
-        }
+        if (!hasFieldIncorrect) {
+            const {
+                nome,
+                nome_usuario,
+                email,
+                senha,
+                data_nascimento,
+                nivel_acesso
+            } = fields;
 
-        return data;
-    }
+            var birthday = adjustBirthday(data_nascimento);
+            var levelAccess = await adjustLevelAccess(nivel_acesso);
 
-    function adjustBirthday(date: string) {
-        let splitDate = null;
+            if (!validateData(nome) || !validateName(nome)) return exceptionFieldInvalid(res, 'Nome está preenchido incorretamente!');
+            if (!validateData(nome_usuario) || !validateUsername(nome_usuario)) return exceptionFieldInvalid(res, 'Nome de usuário está preenchido incorretamente!');
+            if (!validateData(email) || !validateEmail(email)) return exceptionFieldInvalid(res, 'E-mail está preenchido incorretamente!');
+            if (!validateData(senha) || !validatePassword(senha)) return exceptionFieldInvalid(res, 'Senha não está no padrão correto!<br\>Precisa de pelo menos 8 caractes, uma letra minúscula, uma maiúscula, um número e um caracter especial.');
+            if (!birthday || !validateDate(birthday)) return exceptionFieldInvalid(res, 'Data de nascimento preenchida incorretamente!');
+            if (levelAccess.length < 1) return exceptionFieldInvalid(res, 'Nível de acesso selecionado está incorreto!');
 
-        if (date.includes('-')) {
-            splitDate = date.split('-');
-        } else if (date.includes('/')) {
-            splitDate = date.split('/');
-        }
-
-        if (splitDate !== null) {
-            let year: number = Number(splitDate[0]);
-            let month: number = Number(splitDate[1]);
-            let day: number = Number(splitDate[2]);
-
-            if (year < 32) {
-                year = Number(splitDate[2]);
-                day = Number(splitDate[0]);
-            }
-
-            return new Date(year, month, day);
-        }
-
-        return null;
-    }
-
-    async function adjustLevelAccess(levels: []) {
-        if (levels.length > 0) {
-            let listLevels: { id: number }[] = [];
-
-            for (let level of levels) {
-                const permissions = await prisma.permissoes.findFirst({
-                    where: {
-                        id: level
-                    }
-                });
-
-                if (permissions !== null) {
-                    let objectLevel = {
-                        id: level
-                    }
-
-                    listLevels.push(objectLevel);
+            const hashPassword = await argon2.hash(req.body.senha);
+        
+            const data = {
+                nome: nome,
+                nome_usuario: nome_usuario,
+                email: email,
+                senha: hashPassword,
+                data_nascimento: birthday,
+                nivel_acesso: {
+                    connect: levelAccess
                 }
             }
 
-            return listLevels;
+            return data;
         }
 
-        return [];
+        res
+        .status(400)
+        .send(`Campo ${nameFieldIncorrect} não existe!`);
+
+        return null;
     }
 }
 
@@ -388,12 +338,6 @@ const update = async (req: Request, res: Response) => {
     
                 data.nivel_acesso = level;
             }
-    
-            // if (!validateData(req.body.nome) || !validateName(req.body.nome)) return exceptionFieldInvalid(res, 'Nome está preenchido incorretamente!');
-            // if (!validateData(req.body.nome_usuario) || !validateUsername(req.body.nome_usuario)) return exceptionFieldInvalid(res, 'Nome de usuário está preenchido incorretamente!');
-            // if (!validateData(req.body.email) || !validateEmail(req.body.email)) return exceptionFieldInvalid(res, 'E-mail está preenchido incorretamente!');
-            // if (!birthday || !validateDate(birthday)) return exceptionFieldInvalid(res, 'Data de nascimento preenchida incorretamente!');
-            // if (levelAccess.length < 1) return exceptionFieldInvalid(res, 'Nível de acesso selecionado está incorreto!');
     
             return data;
         }
