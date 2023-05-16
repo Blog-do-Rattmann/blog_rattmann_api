@@ -35,10 +35,19 @@ const validateDate = (date: any) => {
     return false;
 }
 
+const validatePassword = (password: string) => {
+    const regexValidatePassword = /^(?=.*\d)(?=.*[a-z])(?=.*[A-Z])(?=.*[^a-zA-Z0-9])(?!.*\s).{8,}$/;
+
+    if (regexValidatePassword.test(password)) return true;
+    
+    return false;
+}
+
 export {
     validateData,
     validateName,
     validateUsername,
     validateEmail,
-    validateDate
+    validateDate,
+    validatePassword
 }
