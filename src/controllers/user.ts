@@ -10,7 +10,11 @@ import {
     validateEmail,
     validateDate
 } from '../utils/validate';
-import { adjustBirthday, adjustLevelAccess, removeAllLevels } from '../utils/handle';
+import {
+    adjustBirthday,
+    adjustLevelAccess,
+    removeAllLevels
+} from '../utils/handle';
 
 const prisma = new PrismaClient();
 
@@ -329,30 +333,7 @@ const update = async (req: Request, res: Response) => {
     async function dataProcessing(id: string) {
         const fields = req.body;
 
-        let hasFieldIncorrect = true;
-        let nameFieldIncorrect = '';
-
-        for (const field in fields) {
-            switch (field) {
-                case 'nome':
-                    hasFieldIncorrect = false;
-                break;
-                case 'nome_usuario':
-                    hasFieldIncorrect = true;
-                break;
-                case 'email':
-                    hasFieldIncorrect = false;
-                break;
-                case 'data_nascimento':
-                    hasFieldIncorrect = false;
-                break;
-                case 'nivel_acesso':
-                    hasFieldIncorrect = false;
-                break;
-                default:
-                    nameFieldIncorrect = field;
-            }
-        }
+        const { hasFieldIncorrect, nameFieldIncorrect } = verifyFieldIncorrect(fields, 'update');
         
         if (!hasFieldIncorrect) {
             interface IData {
@@ -428,6 +409,42 @@ async function verifyUserExists(id: string) {
     });
 
     return user;
+}
+
+const verifyFieldIncorrect = (fields: {}, typeRequest: string = 'register') => {
+    let hasFieldIncorrect = true;
+    let nameFieldIncorrect = '';
+
+    for (const field in fields) {
+        switch (field) {
+            case 'nome':
+                hasFieldIncorrect = false;
+            break;
+            case 'nome_usuario':
+                hasFieldIncorrect = true;
+            break;
+            case 'email':
+                hasFieldIncorrect = false;
+            break;
+            case 'data_nascimento':
+                hasFieldIncorrect = false;
+            break;
+            case 'nivel_acesso':
+                hasFieldIncorrect = false;
+            break;
+            default:
+                nameFieldIncorrect = field;
+
+                if (typeRequest === 'register') {
+                    if (field === 'senha') {
+                        hasFieldIncorrect = false;
+                        nameFieldIncorrect = '';
+                    }
+                }
+        }
+    }
+
+    return { hasFieldIncorrect, nameFieldIncorrect };
 }
 
 export default {
