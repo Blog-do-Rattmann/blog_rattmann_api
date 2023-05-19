@@ -1,13 +1,13 @@
 import { Request, Response, NextFunction } from 'express';
 import { PrismaClient } from '@prisma/client';
 import argon2 from 'argon2';
+import jsonwebtoken from 'jsonwebtoken';
 
 import { exceptionUserNotFound, exceptionFieldInvalid } from '../utils/exceptions';
 import {
     validateData,
     validateUsername,
-    validateEmail,
-    validatePassword
+    validateEmail
 } from '../utils/validate';
 
 const prisma = new PrismaClient();
@@ -22,10 +22,6 @@ const login = async (req: Request, res: Response, next: NextFunction) => {
             .status(200)
             .send('Login realizado com sucesso!');
         }
-
-        return res
-        .status(400)
-        .send('Não foi possível realizar login!');
     })
     .catch(async (err) => {
         console.error(err);
@@ -66,26 +62,13 @@ const login = async (req: Request, res: Response, next: NextFunction) => {
                 }
             });
 
-            if (user === null) {
-                res
-                .status(404)
-                .send('Usuário não encontrado!');
-
-                return null;
-            }
-
-            console.log(!await argon2.verify(user.senha, senha))
-            console.log('Antes argon')
-
-            if (!await argon2.verify(user.senha, senha)) {
+            if (user === null || !await argon2.verify(user.senha, senha)) {
                 res
                 .status(400)
                 .send('Dados de login estão incorretos!');
 
                 return null;
             }
-
-            console.log('Depois do argon')
 
             if (user.estado_conta !== 'ativo') {
                 res
