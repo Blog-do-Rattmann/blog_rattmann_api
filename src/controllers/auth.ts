@@ -1,9 +1,13 @@
 import { Request, Response, NextFunction } from 'express';
 import { PrismaClient } from '@prisma/client';
 import argon2 from 'argon2';
-import jsonwebtoken from 'jsonwebtoken';
+import jwt from 'jsonwebtoken';
+import fs from 'fs';
+import path from 'path';
 
-import { exceptionUserNotFound, exceptionFieldInvalid } from '../utils/exceptions';
+const privateKey = fs.readFileSync(path.resolve(__dirname, '../../keys/private.key'));
+
+import { exceptionFieldInvalid } from '../utils/exceptions';
 import {
     validateData,
     validateUsername,
@@ -18,9 +22,24 @@ const login = async (req: Request, res: Response, next: NextFunction) => {
         await prisma.$disconnect();
 
         if (response !== null) {
+            console.log(response)
+
+            const listLevelAccess = response.nivel_acesso.map(level => {
+                return level.nome;
+            });
+
+            const token = jwt.sign({
+                sub: response.id,
+                nome: response.nome,
+                estado_conta: response.estado_conta,
+                nivel_acesso: listLevelAccess
+            }, privateKey, { algorithm: 'ES512' });
+
             return res
             .status(200)
-            .send('Login realizado com sucesso!');
+            .send({
+                token: token
+            });
         }
     })
     .catch(async (err) => {
@@ -59,6 +78,13 @@ const login = async (req: Request, res: Response, next: NextFunction) => {
                             email: login
                         }
                     ]
+                },
+                include: {
+                    nivel_acesso: {
+                        select: {
+                            nome: true
+                        }
+                    }
                 }
             });
 
@@ -73,7 +99,7 @@ const login = async (req: Request, res: Response, next: NextFunction) => {
             if (user.estado_conta !== 'ativo') {
                 res
                 .status(400)
-                .send('Usuário não está ativo!<br\>Favor entrar em contato com um administrador.');
+                .send('Usuário não possui permissão de acesso!<br\>Favor entrar em contato com um administrador.');
 
                 return null;
             }
