@@ -82,8 +82,23 @@ const removeAllLevels = async (id: string) => {
     }
 }
 
+const createConnectId = (id: any) => {
+    let idNumber = Number(id);
+
+    if (!isNaN(idNumber)) {
+        return {
+            connect: {
+                id: idNumber
+            }
+        }
+    }
+
+    return undefined;
+}
+
 export {
     adjustBirthday,
     adjustLevelAccess,
-    removeAllLevels
+    removeAllLevels,
+    createConnectId
 }
