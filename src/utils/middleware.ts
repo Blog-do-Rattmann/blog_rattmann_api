@@ -14,7 +14,7 @@ const createHistoryLogin = async (data: {
     if (Object.keys(data).length > 0) {
         const ip = getIp();
 
-        const history =await prisma.historicoLogin.create({
+        await prisma.historicoLogin.create({
             data: {
                 ip: ip,
                 login: data.login,
@@ -23,8 +23,6 @@ const createHistoryLogin = async (data: {
                 erro: data.error
             }
         });
-
-        console.log(history)
     }
 }
 
