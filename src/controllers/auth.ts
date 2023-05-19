@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { PrismaClient } from '@prisma/client';
 import argon2 from 'argon2';
 import jwt from 'jsonwebtoken';
+
 import fs from 'fs';
 import path from 'path';
 
@@ -13,6 +14,7 @@ import {
     validateUsername,
     validateEmail
 } from '../utils/validate';
+import { createHistoryLogin } from '../utils/middleware';
 
 const prisma = new PrismaClient();
 
@@ -22,8 +24,6 @@ const login = async (req: Request, res: Response, next: NextFunction) => {
         await prisma.$disconnect();
 
         if (response !== null) {
-            console.log(response)
-
             const listLevelAccess = response.nivel_acesso.map(level => {
                 return level.nome;
             });
@@ -68,6 +68,18 @@ const login = async (req: Request, res: Response, next: NextFunction) => {
             if (!validateData(login) || (!validateUsername(login) && !validateEmail(login))) return exceptionFieldInvalid(res, 'E-mail/nome de usuário está preenchido incorretamente!');
             if (!validateData(senha)) return exceptionFieldInvalid(res, 'Senha está preenchida incorretamente!');
 
+            const dataHistory: {
+                login: string,
+                id: number | undefined,
+                success: boolean,
+                error: string | null,
+            } = {
+                login: login,
+                id: undefined,
+                success: false,
+                error: null
+            };
+
             const user = await prisma.usuario.findFirst({
                 where: {
                     OR: [
@@ -89,6 +101,17 @@ const login = async (req: Request, res: Response, next: NextFunction) => {
             });
 
             if (user === null || !await argon2.verify(user.senha, senha)) {
+                if (user === null) {
+                    dataHistory.error = 'Usuário não encontrado!';
+
+                    await createHistoryLogin(dataHistory);
+                } else {
+                    dataHistory.id = user.id;
+                    dataHistory.error = 'Senha incorreta!';
+
+                    await createHistoryLogin(dataHistory);
+                }
+
                 res
                 .status(400)
                 .send('Dados de login estão incorretos!');
@@ -97,12 +120,22 @@ const login = async (req: Request, res: Response, next: NextFunction) => {
             }
 
             if (user.estado_conta !== 'ativo') {
+                dataHistory.id = user.id;
+                dataHistory.error = 'Usuário sem permissão de acesso!';
+
+                await createHistoryLogin(dataHistory);
+
                 res
                 .status(400)
                 .send('Usuário não possui permissão de acesso!<br\>Favor entrar em contato com um administrador.');
 
                 return null;
             }
+
+            dataHistory.id = user.id;
+            dataHistory.success = true;
+
+            await createHistoryLogin(dataHistory);
 
             return user;
         }
