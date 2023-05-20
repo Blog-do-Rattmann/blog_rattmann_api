@@ -158,6 +158,7 @@ const verifyFieldIncorrect = (fields: {}) => {
 const generateToken = (res: Response, data: {
     id: number,
     nome: string,
+    nome_usuario: string,
     estado_conta: string,
     nivel_acesso: {
         nome: string
@@ -169,9 +170,13 @@ const generateToken = (res: Response, data: {
 
     const token = jwt.sign({
         sub: data.id,
-        nome: data.nome,
-        estado_conta: data.estado_conta,
-        nivel_acesso: listLevelAccess
+        data: {
+            nome: data.nome,
+            nome_usuario: data.nome_usuario,
+            estado_conta: data.estado_conta,
+            nivel_acesso: listLevelAccess
+        },
+        exp: Math.floor(Date.now() / 1000) + (60 * 60)
     }, privateKey, { algorithm: 'ES512' }, (error, token) => {
         if (error) {
             return res
