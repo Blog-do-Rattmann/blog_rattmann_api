@@ -6,6 +6,10 @@ import path from 'path';
 
 const publicKey = fs.readFileSync(path.resolve(__dirname, '../../keys/public.key'));
 
+import {
+    exceptionUserUnauthorized
+} from '../utils/exceptions';
+
 const auth = async (req: Request, res: Response, next: NextFunction) => {
     if (req.originalUrl !== '/usuario/cadastrar') {
         let token = req.headers['authorization'];
@@ -16,9 +20,7 @@ const auth = async (req: Request, res: Response, next: NextFunction) => {
     
             return jwt.verify(token, publicKey, (error: any, tokenDecoded: any) => {
                 if (error) {
-                    return res
-                    .status(403)
-                    .send('Acesso não autorizado!');
+                    exceptionUserUnauthorized(res);
                 }
     
                 req['userInfo'] = tokenDecoded;
