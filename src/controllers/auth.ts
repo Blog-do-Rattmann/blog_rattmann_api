@@ -180,10 +180,9 @@ const generateToken = (res: Response, data: {
         }
 
         return res
+        .set('X-Access-Token', token)
         .status(200)
-        .send({
-            token: token
-        });
+        .send('Login realizado com sucesso!');
     });
 
     return token;
