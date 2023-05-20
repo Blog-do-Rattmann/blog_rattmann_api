@@ -24,22 +24,9 @@ const login = async (req: Request, res: Response, next: NextFunction) => {
         await prisma.$disconnect();
 
         if (response !== null) {
-            const listLevelAccess = response.nivel_acesso.map(level => {
-                return level.nome;
-            });
+            const token = generateToken(res, response);
 
-            const token = jwt.sign({
-                sub: response.id,
-                nome: response.nome,
-                estado_conta: response.estado_conta,
-                nivel_acesso: listLevelAccess
-            }, privateKey, { algorithm: 'ES512' });
-
-            return res
-            .status(200)
-            .send({
-                token: token
-            });
+            return token;
         }
     })
     .catch(async (err) => {
@@ -166,6 +153,40 @@ const verifyFieldIncorrect = (fields: {}) => {
     }
 
     return { hasFieldIncorrect, nameFieldIncorrect };
+}
+
+const generateToken = (res: Response, data: {
+    id: number,
+    nome: string,
+    estado_conta: string,
+    nivel_acesso: {
+        nome: string
+    }[]
+}) => {
+    const listLevelAccess = data.nivel_acesso.map((level: { nome: string }) => {
+        return level.nome;
+    });
+
+    const token = jwt.sign({
+        sub: data.id,
+        nome: data.nome,
+        estado_conta: data.estado_conta,
+        nivel_acesso: listLevelAccess
+    }, privateKey, { algorithm: 'ES512' }, (error, token) => {
+        if (error) {
+            return res
+            .status(500)
+            .send('Falha ao gerar token!<br\>Tente novamente mais tarde!');
+        }
+
+        return res
+        .status(200)
+        .send({
+            token: token
+        });
+    });
+
+    return token;
 }
 
 export default { login };
