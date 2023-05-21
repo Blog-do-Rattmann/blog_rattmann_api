@@ -37,22 +37,14 @@ const register = async (req: Request, res: Response) => {
     .then(async (response) => {
         await prisma.$disconnect();
 
-        if (response !== null) {
-            return res
-            .status(200)
-            .send('Cadastro realizado com sucesso!');
-        }
+        if (response !== null) return displayResponseJson(res, 200, 'Cadastro realizado com sucesso!');
     })
     .catch(async (err) => {
         console.error(err);
         await prisma.$disconnect();
 
-        let status = 500;
-        let mensagem = 'Ocorreu um erro em nosso servidor.<br\>Tente novamente mais tarde!';
-
         if (err.code === 'P2002') {
-            status = 400;
-            mensagem = 'Não foi possível realizar o cadastro!';
+            let mensagem = 'Não foi possível realizar o cadastro!';
 
             if (err.meta.target === 'usuarios_nome_usuario_key') {
                 mensagem = 'Nome de usuário já cadastrado em nossa base de dados!';
@@ -61,11 +53,11 @@ const register = async (req: Request, res: Response) => {
             if (err.meta.target === 'usuarios_email_key') {
                 mensagem = 'E-mail já cadastrado em nossa base de dados!';
             }
+
+            return displayResponseJson(res, 400, mensagem);
         }
 
-        return res
-            .status(status)
-            .send(mensagem);
+        return displayResponseJson(res, 500);
     });
 
     async function createUser() {
@@ -140,9 +132,7 @@ const register = async (req: Request, res: Response) => {
             return data;
         }
 
-        res
-        .status(400)
-        .send(`Campo ${nameFieldIncorrect} não existe!`);
+        displayResponseJson(res, 400, `Campo ${nameFieldIncorrect} não existe!`);
 
         return null;
     }
@@ -171,25 +161,17 @@ const profile = async (req: Request, res: Response) => {
             data_criacao: dataCriacao
         }
 
-        return res
-        .status(200)
-        .send(user);
+        return displayResponseJson(res, 200, user);
     })
     .catch(async (err) => {
         console.error(err);
         await prisma.$disconnect();
 
-        let status = 500;
-        let mensagem = 'Ocorreu um erro em nosso servidor.<br\>Tente novamente mais tarde!';
-
         if (err.code === 'P2025') {
-            status = 404;
-            mensagem = 'Usuário não encontrado!';
+            return displayResponseJson(res, 404, 'Usuário não encontrado!');
         }
 
-        return res
-            .status(status)
-            .send(mensagem);
+        return displayResponseJson(res, 500);
     });
 
     async function showProfile() {
@@ -215,16 +197,12 @@ const list = async (req: Request, res: Response) => {
         if (response === null) return exceptionUserUnauthorized(res);
         
         if (response.length < 1) {
-            return res
-            .status(404)
-            .send('Nenhum usuário encontrado!');
+            return displayResponseJson(res, 404, 'Nenhum usuário encontrado!');
         }
 
         const listUsers = dataProcessing(response);
 
-        return res
-        .status(200)
-        .send(listUsers);
+        return displayResponseJson(res, 200, listUsers);
     })
     .catch(async (err) => {
         console.error(err);
@@ -282,22 +260,13 @@ const update = async (req: Request, res: Response) => {
     .then(async (response) => {
         await prisma.$disconnect();
 
-        if (response !== null) {
-            return res
-            .status(200)
-            .send('Usuário alterado com sucesso!');
-        }
+        if (response !== null) return displayResponseJson(res, 200, 'Usuário alterado com sucesso!');
     })
     .catch(async (err) => {
         console.error(err);
         await prisma.$disconnect();
 
-        let status = 500;
-        let mensagem = 'Ocorreu um erro em nosso servidor.<br\>Tente novamente mais tarde!';
-
-        return res
-            .status(status)
-            .send(mensagem);
+        return displayResponseJson(res, 500);
     });
 
     async function updateUser() {
@@ -381,9 +350,7 @@ const update = async (req: Request, res: Response) => {
             return data;
         }
 
-        res
-        .status(400)
-        .send(`Campo ${nameFieldIncorrect} não existe!`);
+        displayResponseJson(res, 400, `Campo ${nameFieldIncorrect} não existe!`);
 
         return null;
     }
@@ -394,11 +361,7 @@ const remove = async (req: Request, res: Response) => {
     .then(async (response) => {
         await prisma.$disconnect();
 
-        if (response !== null) {
-            return res
-                .status(200)
-                .send('Usuário deletado com sucesso!');
-        }
+        if (response !== null) return displayResponseJson(res, 200, 'Usuário deletado com sucesso!');
     })
     .catch(async (err) => {
         console.error(err);
@@ -438,22 +401,13 @@ const changePassword = async (req: Request, res: Response) => {
     .then(async (response) => {
         await prisma.$disconnect();
 
-        if (response !== null) {
-            return res
-                .status(200)
-                .send('Senha alterada com sucesso!');
-        }
+        if (response !== null) return displayResponseJson(res, 200, 'Senha alterada com sucesso!');
     })
     .catch(async (err) => {
         console.error(err);
         await prisma.$disconnect();
 
-        let status = 500;
-        let mensagem = 'Ocorreu um erro em nosso servidor.<br\>Tente novamente mais tarde!';
-
-        return res
-            .status(status)
-            .send(mensagem);
+        return displayResponseJson(res, 500);
     });
 
     async function newPassword() {
@@ -532,9 +486,7 @@ const changePassword = async (req: Request, res: Response) => {
             return data;
         }
 
-        res
-        .status(400)
-        .send(`Campo ${nameFieldIncorrect} não existe!`);
+        displayResponseJson(res, 400, `Campo ${nameFieldIncorrect} não existe!`);
 
         return null;
     }

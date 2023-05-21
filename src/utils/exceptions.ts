@@ -1,23 +1,19 @@
 import { Response } from 'express';
 
+import { displayResponseJson } from './middleware';
+
 const exceptionUserNotFound = (res: Response) => {
-    return res
-        .status(404)
-        .send('Usuário não encontrado!');
+    return displayResponseJson(res, 404, 'Usuário não encontrado!');
 }
 
 const exceptionFieldInvalid = (res: Response, message: string) => {
-    res
-    .status(400)
-    .send(message);
+    displayResponseJson(res, 400, message);
 
     return null;
 }
 
 const exceptionUserUnauthorized = (res: Response) => {
-    return res
-    .status(403)
-    .send('Acesso não autorizado!');
+    return displayResponseJson(res, 403, 'Acesso não autorizado!');
 }
 
 export {

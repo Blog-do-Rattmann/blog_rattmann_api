@@ -10,6 +10,8 @@ import {
     exceptionUserUnauthorized
 } from '../utils/exceptions';
 
+import { displayResponseJson } from '../utils/middleware';
+
 const auth = (req: Request, res: Response, next: NextFunction) => {
     let tokenValid = true;
     let token = req.headers['authorization'];
@@ -29,9 +31,7 @@ const auth = (req: Request, res: Response, next: NextFunction) => {
     
     if (req.originalUrl !== '/usuario/cadastrar') {
         if (token === undefined) {
-            return res
-            .status(401)
-            .send('Token inválido!');
+            return displayResponseJson(res, 401, 'Token inválido!');
         }
     }
 
