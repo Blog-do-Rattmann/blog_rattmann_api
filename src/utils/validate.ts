@@ -1,4 +1,7 @@
+import { PrismaClient } from '@prisma/client';
 import moment from 'moment';
+
+const prisma = new PrismaClient();
 
 const validateData = (value: any) => {
     if ((value === null || value === undefined) || (typeof value === 'string' && value.trim() === '')) return false;
@@ -45,11 +48,24 @@ const validatePassword = (password: string) => {
     return false;
 }
 
+const validatePermission = async (permission: string) => {
+    const getIdPermission = await prisma.permissoes.findFirst({
+        where: {
+            nome: permission
+        }
+    });
+    
+    if (getIdPermission === null) return false;
+
+    return true;
+}
+
 export {
     validateData,
     validateName,
     validateUsername,
     validateEmail,
     validateDate,
-    validatePassword
+    validatePassword,
+    validatePermission
 }

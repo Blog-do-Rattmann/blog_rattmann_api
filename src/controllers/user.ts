@@ -15,15 +15,15 @@ import {
     validateUsername,
     validateEmail,
     validateDate,
-    validatePassword
+    validatePassword,
+    validatePermission
 } from '../utils/validate';
 
 import {
     adjustBirthday,
-    adjustLevelAccess,
-    removeAllLevels,
     verifyPermissionUser,
-    filterIdOrUsername
+    filterIdOrUsername,
+    getIdPermission
 } from '../utils/handle';
 
 import {
@@ -37,22 +37,14 @@ const register = async (req: Request, res: Response) => {
     .then(async (response) => {
         await prisma.$disconnect();
 
-        if (response !== null) {
-            return res
-            .status(200)
-            .send('Cadastro realizado com sucesso!');
-        }
+        if (response !== null) return displayResponseJson(res, 200, 'Cadastro realizado com sucesso!');
     })
     .catch(async (err) => {
         console.error(err);
         await prisma.$disconnect();
 
-        let status = 500;
-        let mensagem = 'Ocorreu um erro em nosso servidor.<br\>Tente novamente mais tarde!';
-
         if (err.code === 'P2002') {
-            status = 400;
-            mensagem = 'Não foi possível realizar o cadastro!';
+            let mensagem = 'Não foi possível realizar o cadastro!';
 
             if (err.meta.target === 'usuarios_nome_usuario_key') {
                 mensagem = 'Nome de usuário já cadastrado em nossa base de dados!';
@@ -61,11 +53,11 @@ const register = async (req: Request, res: Response) => {
             if (err.meta.target === 'usuarios_email_key') {
                 mensagem = 'E-mail já cadastrado em nossa base de dados!';
             }
+
+            return displayResponseJson(res, 400, mensagem);
         }
 
-        return res
-            .status(status)
-            .send(mensagem);
+        return displayResponseJson(res, 500);
     });
 
     async function createUser() {
@@ -88,24 +80,43 @@ const register = async (req: Request, res: Response) => {
         const { hasFieldIncorrect, nameFieldIncorrect } = verifyFieldIncorrect(fields);
         
         if (!hasFieldIncorrect) {
+            const dataToken = req.userInfo?.data;
+
             const {
                 nome,
                 nome_usuario,
                 email,
                 senha,
                 data_nascimento,
-                nivel_acesso
+                permissao
             } = fields;
 
             var birthday = adjustBirthday(data_nascimento);
-            var levelAccess = await adjustLevelAccess(nivel_acesso);
+
+            let permission = 'leitor';
 
             if (!validateData(nome) || !validateName(nome)) return exceptionFieldInvalid(res, 'Nome está preenchido incorretamente!');
             if (!validateData(nome_usuario) || !validateUsername(nome_usuario)) return exceptionFieldInvalid(res, 'Nome de usuário está preenchido incorretamente!');
             if (!validateData(email) || !validateEmail(email)) return exceptionFieldInvalid(res, 'E-mail está preenchido incorretamente!');
             if (!validateData(senha) || !validatePassword(senha)) return exceptionFieldInvalid(res, 'Senha não está no padrão correto!<br\>Precisa de pelo menos 8 caractes, uma letra minúscula, uma maiúscula, um número e um caracter especial.');
             if (!birthday || !validateDate(birthday)) return exceptionFieldInvalid(res, 'Data de nascimento preenchida incorretamente!');
-            if (levelAccess.length < 1) return exceptionFieldInvalid(res, 'Nível de acesso selecionado está incorreto!');
+            if (dataToken?.permissao === 'admin') {
+                if (!validateData(permissao) || !await validatePermission(permissao)) return exceptionFieldInvalid(res, 'Permissão de acesso selecionada está incorreta!');
+                
+                if (dataToken?.permissao === 'admin') permission = permissao;
+            }
+
+            const idPermission = await getIdPermission(permission);
+
+            let connectPermission = {
+                connect: {
+                    id: 3
+                }
+            }
+
+            if (idPermission !== null) {
+                connectPermission.connect.id = idPermission;
+            }
 
             const hashPassword = await argon2.hash(req.body.senha);
         
@@ -115,17 +126,13 @@ const register = async (req: Request, res: Response) => {
                 email: email,
                 senha: hashPassword,
                 data_nascimento: birthday,
-                nivel_acesso: {
-                    connect: levelAccess
-                }
+                permissao: connectPermission
             }
 
             return data;
         }
 
-        res
-        .status(400)
-        .send(`Campo ${nameFieldIncorrect} não existe!`);
+        displayResponseJson(res, 400, `Campo ${nameFieldIncorrect} não existe!`);
 
         return null;
     }
@@ -154,25 +161,17 @@ const profile = async (req: Request, res: Response) => {
             data_criacao: dataCriacao
         }
 
-        return res
-        .status(200)
-        .send(user);
+        return displayResponseJson(res, 200, user);
     })
     .catch(async (err) => {
         console.error(err);
         await prisma.$disconnect();
 
-        let status = 500;
-        let mensagem = 'Ocorreu um erro em nosso servidor.<br\>Tente novamente mais tarde!';
-
         if (err.code === 'P2025') {
-            status = 404;
-            mensagem = 'Usuário não encontrado!';
+            return displayResponseJson(res, 404, 'Usuário não encontrado!');
         }
 
-        return res
-            .status(status)
-            .send(mensagem);
+        return displayResponseJson(res, 500);
     });
 
     async function showProfile() {
@@ -198,16 +197,12 @@ const list = async (req: Request, res: Response) => {
         if (response === null) return exceptionUserUnauthorized(res);
         
         if (response.length < 1) {
-            return res
-            .status(404)
-            .send('Nenhum usuário encontrado!');
+            return displayResponseJson(res, 404, 'Nenhum usuário encontrado!');
         }
 
         const listUsers = dataProcessing(response);
 
-        return res
-        .status(200)
-        .send(listUsers);
+        return displayResponseJson(res, 200, listUsers);
     })
     .catch(async (err) => {
         console.error(err);
@@ -221,7 +216,11 @@ const list = async (req: Request, res: Response) => {
 
         if (!verifyPermissionUser(dataToken, 'admin')) return null;
 
-        const users = prisma.usuario.findMany();
+        const users = prisma.usuario.findMany({
+            include: {
+                permissao: true
+            }
+        });
     
         return users;
     }
@@ -245,6 +244,7 @@ const list = async (req: Request, res: Response) => {
                 email: user.email,
                 data_nascimento: dataNascimento,
                 estado_conta: user.estado_conta,
+                permissao: user.permissao.nome,
                 data_criacao: dataCriacao
             }
 
@@ -260,37 +260,43 @@ const update = async (req: Request, res: Response) => {
     .then(async (response) => {
         await prisma.$disconnect();
 
-        if (response !== null) {
-            return res
-            .status(200)
-            .send('Usuário alterado com sucesso!');
-        }
+        if (response !== null) return displayResponseJson(res, 200, 'Usuário alterado com sucesso!');
     })
     .catch(async (err) => {
         console.error(err);
         await prisma.$disconnect();
 
-        let status = 500;
-        let mensagem = 'Ocorreu um erro em nosso servidor.<br\>Tente novamente mais tarde!';
-
-        return res
-            .status(status)
-            .send(mensagem);
+        return displayResponseJson(res, 500);
     });
 
     async function updateUser() {
         const { id } = req.params;
-        
+        const dataToken = req.userInfo?.data;
+
+        let idNumber = null;
+
+        if (id !== undefined) {
+            if (!verifyPermissionUser(dataToken, 'admin')) {
+                exceptionUserUnauthorized(res);
+
+                return null;
+            }
+        } else {
+            idNumber = req.userInfo?.sub;
+        }
+
         const user = await verifyUserExists(id);
 
         if (user === null) return exceptionUserNotFound(res);
 
-        const data = await dataProcessing(id);
+        if (idNumber === null) idNumber = user.id;
+
+        const data = await dataProcessing(dataToken, idNumber);
 
         if (data !== null) {
             const updated = await prisma.usuario.update({
                 where: {
-                    id: user.id
+                    id: idNumber
                 },
                 data: data
             });
@@ -301,7 +307,7 @@ const update = async (req: Request, res: Response) => {
         return null;
     }
 
-    async function dataProcessing(id: string) {
+    async function dataProcessing(dataToken: any, id: number) {
         const fields = req.body;
 
         const { hasFieldIncorrect, nameFieldIncorrect } = verifyFieldIncorrect(fields, 'update');
@@ -312,8 +318,10 @@ const update = async (req: Request, res: Response) => {
                 nome_usuario: string,
                 email: string,
                 data_nascimento: Date,
-                nivel_acesso: {
-                    connect: { id: number; }[]
+                permissao: {
+                    connect: {
+                        id: number
+                    }
                 }
             }
 
@@ -324,32 +332,25 @@ const update = async (req: Request, res: Response) => {
                 nome_usuario,
                 email,
                 data_nascimento,
-                nivel_acesso
+                permissao
             } = fields;
     
             const birthday = adjustBirthday(data_nascimento);
-            const levelAccess = await adjustLevelAccess(nivel_acesso);
+            data.permissao.connect.id = 3;
     
-            if (validateData(nome)) data.nome = nome;
-            if (validateData(nome_usuario)) data.nome_usuario = nome_usuario;
-            if (validateData(email)) data.email = email;
-            if (birthday !== false) data.data_nascimento = birthday;
-            if (levelAccess.length > 0) {
-                await removeAllLevels(id);
-    
-                const level = {
-                    connect: levelAccess
-                }
-    
-                data.nivel_acesso = level;
+            if (validateData(nome) && validateName(nome)) data.nome = nome;
+            if (validateData(nome_usuario) && validateUsername(nome)) data.nome_usuario = nome_usuario;
+            if (validateData(email) && validateEmail(email)) data.email = email;
+            if (validateData(data_nascimento) && birthday !== false) data.data_nascimento = birthday;
+
+            if (dataToken.permissao === 'admin') {
+                if (validateData(permissao) && await validatePermission(permissao)) data.permissao.connect.id = permissao;
             }
     
             return data;
         }
 
-        res
-        .status(400)
-        .send(`Campo ${nameFieldIncorrect} não existe!`);
+        displayResponseJson(res, 400, `Campo ${nameFieldIncorrect} não existe!`);
 
         return null;
     }
@@ -360,11 +361,7 @@ const remove = async (req: Request, res: Response) => {
     .then(async (response) => {
         await prisma.$disconnect();
 
-        if (response !== null) {
-            return res
-                .status(200)
-                .send('Usuário deletado com sucesso!');
-        }
+        if (response !== null) return displayResponseJson(res, 200, 'Usuário deletado com sucesso!');
     })
     .catch(async (err) => {
         console.error(err);
@@ -390,8 +387,6 @@ const remove = async (req: Request, res: Response) => {
         } else {
             id = req.userInfo?.sub;
         }
-        
-        await removeAllLevels(id);
 
         await prisma.usuario.deleteMany({
             where: {
@@ -406,27 +401,20 @@ const changePassword = async (req: Request, res: Response) => {
     .then(async (response) => {
         await prisma.$disconnect();
 
-        if (response !== null) {
-            return res
-                .status(200)
-                .send('Senha alterada com sucesso!');
-        }
+        if (response !== null) return displayResponseJson(res, 200, 'Senha alterada com sucesso!');
     })
     .catch(async (err) => {
         console.error(err);
         await prisma.$disconnect();
 
-        let status = 500;
-        let mensagem = 'Ocorreu um erro em nosso servidor.<br\>Tente novamente mais tarde!';
-
-        return res
-            .status(status)
-            .send(mensagem);
+        return displayResponseJson(res, 500);
     });
 
     async function newPassword() {
-        let { id } = req.params;
+        const { id } = req.params;
         const dataToken = req.userInfo?.data;
+
+        let idNumber = null;
 
         if (id !== undefined) {
             if (!verifyPermissionUser(dataToken, 'admin')) {
@@ -435,19 +423,21 @@ const changePassword = async (req: Request, res: Response) => {
                 return null;
             }
         } else {
-            id = req.userInfo?.sub;
+            idNumber = req.userInfo?.sub;
         }
-        
+
         const user = await verifyUserExists(id);
 
         if (user === null) return exceptionUserNotFound(res);
 
-        const data = await dataProcessing(id, user);
+        if (idNumber === null) idNumber = user.id;
+        
+        const data = await dataProcessing(user);
 
         if (data !== null) {
             const changedPassword = await prisma.usuario.update({
                 where: {
-                    id: user.id
+                    id: idNumber
                 },
                 data: data
             });
@@ -458,7 +448,7 @@ const changePassword = async (req: Request, res: Response) => {
         return null;
     }
 
-    async function dataProcessing(id: string, user: any) {
+    async function dataProcessing(user: any) {
         const fields = req.body;
 
         const { hasFieldIncorrect, nameFieldIncorrect } = verifyFieldIncorrect(fields, 'change-password');
@@ -496,9 +486,7 @@ const changePassword = async (req: Request, res: Response) => {
             return data;
         }
 
-        res
-        .status(400)
-        .send(`Campo ${nameFieldIncorrect} não existe!`);
+        displayResponseJson(res, 400, `Campo ${nameFieldIncorrect} não existe!`);
 
         return null;
     }

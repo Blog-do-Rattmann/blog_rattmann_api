@@ -9,12 +9,14 @@ import path from 'path';
 const privateKey = fs.readFileSync(path.resolve(__dirname, '../../keys/private.key'));
 
 import { exceptionFieldInvalid } from '../utils/exceptions';
+
 import {
     validateData,
     validateUsername,
     validateEmail
 } from '../utils/validate';
-import { createHistoryLogin } from '../utils/middleware';
+
+import { createHistoryLogin, displayResponseJson } from '../utils/middleware';
 
 const prisma = new PrismaClient();
 
@@ -33,12 +35,7 @@ const login = async (req: Request, res: Response, next: NextFunction) => {
         console.error(err);
         await prisma.$disconnect();
 
-        let status = 500;
-        let mensagem = 'Ocorreu um erro em nosso servidor.<br\>Tente novamente mais tarde!';
-
-        return res
-            .status(status)
-            .send(mensagem);
+        return displayResponseJson(res, 500);
     });
 
     async function verifyLogin() {
@@ -79,7 +76,7 @@ const login = async (req: Request, res: Response, next: NextFunction) => {
                     ]
                 },
                 include: {
-                    nivel_acesso: {
+                    permissao: {
                         select: {
                             nome: true
                         }
@@ -99,9 +96,7 @@ const login = async (req: Request, res: Response, next: NextFunction) => {
                     await createHistoryLogin(dataHistory);
                 }
 
-                res
-                .status(400)
-                .send('Dados de login estão incorretos!');
+                displayResponseJson(res, 400, 'Dados de login estão incorretos!');
 
                 return null;
             }
@@ -112,9 +107,7 @@ const login = async (req: Request, res: Response, next: NextFunction) => {
 
                 await createHistoryLogin(dataHistory);
 
-                res
-                .status(400)
-                .send('Usuário não possui permissão de acesso!<br\>Favor entrar em contato com um administrador.');
+                displayResponseJson(res, 400, 'Usuário não possui permissão de acesso!<br\>Favor entrar em contato com um administrador.');
 
                 return null;
             }
@@ -127,9 +120,7 @@ const login = async (req: Request, res: Response, next: NextFunction) => {
             return user;
         }
 
-        res
-        .status(400)
-        .send(`Campo ${nameFieldIncorrect} não existe!`);
+        displayResponseJson(res, 400, `Campo ${nameFieldIncorrect} não existe!`);
 
         return null;
     }
@@ -160,28 +151,22 @@ const generateToken = (res: Response, data: {
     nome: string,
     nome_usuario: string,
     estado_conta: string,
-    nivel_acesso: {
+    permissao: {
         nome: string
-    }[]
+    }
 }) => {
-    const listLevelAccess = data.nivel_acesso.map((level: { nome: string }) => {
-        return level.nome;
-    });
-
     const token = jwt.sign({
         sub: data.id,
         data: {
             nome: data.nome,
             nome_usuario: data.nome_usuario,
             estado_conta: data.estado_conta,
-            nivel_acesso: listLevelAccess
+            permissao: data.permissao.nome
         },
         exp: Math.floor(Date.now() / 1000) + (60 * 60)
     }, privateKey, { algorithm: 'ES512' }, (error, token) => {
         if (error) {
-            return res
-            .status(500)
-            .send('Falha ao gerar token!<br\>Tente novamente mais tarde!');
+            return displayResponseJson(res, 500, 'Falha ao gerar token!<br\>Tente novamente mais tarde!');
         }
 
         return res

@@ -33,53 +33,19 @@ const adjustBirthday = (date: string) => {
     return false;
 }
 
-const adjustLevelAccess = async (levels: []) => {
-    if (Array.isArray(levels)) {
-        if (levels.length > 0) {
-            let listLevels: { id: number }[] = [];
-    
-            for (let level of levels) {
-                const levelNumber = Number(level);
-
-                if (!isNaN(levelNumber)) {
-                    const permissions = await prisma.permissoes.findFirst({
-                        where: {
-                            id: levelNumber
-                        }
-                    });
-        
-                    if (permissions !== null) {
-                        let objectLevel = {
-                            id: levelNumber
-                        }
-        
-                        listLevels.push(objectLevel);
-                    }
-                }
-            }
-    
-            return listLevels;
+const getIdPermission = async (permission: string) => {
+    const getPermission = await prisma.permissoes.findFirst({
+        where: {
+            nome: permission
+        },
+        select: {
+            id: true
         }
-    }
+    });
 
-    return [];
-}
+    if (getPermission !== null) return getPermission.id;
 
-const removeAllLevels = async (id: string | number) => {
-    id = Number(id);
-
-    if (!isNaN(id)) {
-        await prisma.usuario.update({
-            where: {
-                id: id
-            },
-            data: {
-                nivel_acesso: {
-                    set: []
-                }
-            }
-        });
-    }
+    return null;
 }
 
 const createConnectId = (id: any) => {
@@ -96,23 +62,11 @@ const createConnectId = (id: any) => {
     return undefined;
 }
 
-const verifyPermissionUser = (data: any, typeUser: string | string[]) => {
+const verifyPermissionUser = (data: any, typeUser: string) => {
     let userHasPermission = false;
 
     if (data.estado_conta === 'ativo') {
-        data.nivel_acesso.forEach((level: string) => {
-            if (typeof typeUser === 'string') {
-                if (typeUser === level) {
-                    userHasPermission = true;
-                }
-            } else {
-                typeUser.forEach((type: string) => {
-                    if (type === level) {
-                        userHasPermission = true;
-                    }
-                });
-            }
-        });
+        if (typeUser === data.permissao) userHasPermission = true;
     }
 
     return userHasPermission;
@@ -131,9 +85,8 @@ const filterIdOrUsername = (data: string | number | undefined) => {
 
 export {
     adjustBirthday,
-    adjustLevelAccess,
-    removeAllLevels,
     createConnectId,
     verifyPermissionUser,
-    filterIdOrUsername
+    filterIdOrUsername,
+    getIdPermission
 }

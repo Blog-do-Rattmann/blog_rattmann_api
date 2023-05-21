@@ -4,7 +4,7 @@ import auth from '../middleware/auth';
 
 const userRoutes = Router();
 
-userRoutes.post('/cadastrar', user.register);
+userRoutes.post('/cadastrar', auth, user.register);
 userRoutes.get('/perfil/:id?', auth, user.profile);
 userRoutes.get('/lista', auth, user.list);
 userRoutes.patch('/editar/:id?', auth, user.update);
