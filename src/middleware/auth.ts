@@ -18,14 +18,16 @@ const auth = async (req: Request, res: Response, next: NextFunction) => {
             token = token.replace('Bearer', '');
             token = token.trim();
     
-            return jwt.verify(token, publicKey, (error: any, tokenDecoded: any) => {
+            jwt.verify(token, publicKey, (error: any, tokenDecoded: any) => {
                 if (error) {
                     exceptionUserUnauthorized(res);
                 }
     
                 req['userInfo'] = tokenDecoded;
-                return next();
+                next();
             });
+
+            return true;
         }
     
         return res

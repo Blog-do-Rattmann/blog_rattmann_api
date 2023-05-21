@@ -1,9 +1,14 @@
-import { Request, Response, NextFunction } from 'express';
+import { Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import moment from 'moment';
 import argon2 from 'argon2';
 
-import { exceptionUserNotFound, exceptionFieldInvalid } from '../utils/exceptions';
+import {
+    exceptionUserNotFound,
+    exceptionFieldInvalid,
+    exceptionUserUnauthorized
+} from '../utils/exceptions';
+
 import {
     validateData,
     validateName,
@@ -12,11 +17,18 @@ import {
     validateDate,
     validatePassword
 } from '../utils/validate';
+
 import {
     adjustBirthday,
     adjustLevelAccess,
-    removeAllLevels
+    removeAllLevels,
+    verifyPermissionUser,
+    filterIdOrUsername
 } from '../utils/handle';
+
+import {
+    displayResponseJson
+} from '../utils/middleware';
 
 const prisma = new PrismaClient();
 
@@ -164,21 +176,13 @@ const profile = async (req: Request, res: Response) => {
     });
 
     async function showProfile() {
-        const id = req.params.id;
-        let idNumber: number | undefined = Number(id);
-
-        if (isNaN(idNumber)) idNumber = undefined;
+        let { id } = req.params;
+        
+        if (id === undefined) id = req.userInfo?.sub;
 
         const user = prisma.usuario.findFirstOrThrow({
             where: {
-                OR: [
-                    {
-                        id: idNumber
-                    },
-                    {
-                        nome_usuario: id
-                    }
-                ]
+                OR: filterIdOrUsername(id)
             }
         });
 
@@ -188,8 +192,10 @@ const profile = async (req: Request, res: Response) => {
 
 const list = async (req: Request, res: Response) => {
     await showList()
-    .then(async (response) => {
+    .then(async (response: any) => {
         await prisma.$disconnect();
+
+        if (response === null) return exceptionUserUnauthorized(res);
         
         if (response.length < 1) {
             return res
@@ -207,17 +213,16 @@ const list = async (req: Request, res: Response) => {
         console.error(err);
         await prisma.$disconnect();
 
-        let status = 500;
-        let mensagem = 'Ocorreu um erro em nosso servidor.<br\>Tente novamente mais tarde!';
-
-        return res
-            .status(status)
-            .send(mensagem);
+        return displayResponseJson(res, 500);
     });
 
     async function showList() {
-        const users = prisma.usuario.findMany();
+        const dataToken = req.userInfo?.data;
 
+        if (!verifyPermissionUser(dataToken, 'admin')) return null;
+
+        const users = prisma.usuario.findMany();
+    
         return users;
     }
 
@@ -352,47 +357,45 @@ const update = async (req: Request, res: Response) => {
 
 const remove = async (req: Request, res: Response) => {
     await removeUser()
-    .then(async () => {
+    .then(async (response) => {
         await prisma.$disconnect();
 
-        return res
-            .status(200)
-            .send('Usuário deletado com sucesso!');
+        if (response !== null) {
+            return res
+                .status(200)
+                .send('Usuário deletado com sucesso!');
+        }
     })
     .catch(async (err) => {
         console.error(err);
         await prisma.$disconnect();
-
-        let status = 500;
-        let mensagem = 'Ocorreu um erro em nosso servidor.<br\>Tente novamente mais tarde!';
-
+        
         if (err.code === 'P2025') {
-            status = 404;
-            mensagem = 'Usuário não encontrado!';
+            return displayResponseJson(res, 404, 'Usuário não encontrado!');
         }
-
-        return res
-            .status(status)
-            .send(mensagem);
+        
+        return displayResponseJson(res, 500);
     });
 
     async function removeUser() {
-        const { id } = req.params;
-        let idNumber: number | undefined = Number(id);
-        if (isNaN(idNumber)) idNumber = undefined;
+        let { id } = req.params;
+        const dataToken = req.userInfo?.data;
 
+        if (id !== undefined) {
+            if (!verifyPermissionUser(dataToken, 'admin')) {
+                exceptionUserUnauthorized(res);
+
+                return null;
+            }
+        } else {
+            id = req.userInfo?.sub;
+        }
+        
         await removeAllLevels(id);
 
         await prisma.usuario.deleteMany({
             where: {
-                OR: [
-                    {
-                        id: idNumber
-                    },
-                    {
-                        nome_usuario: id
-                    }
-                ]
+                OR: filterIdOrUsername(id)
             }
         });
     }
@@ -422,7 +425,18 @@ const changePassword = async (req: Request, res: Response) => {
     });
 
     async function newPassword() {
-        const { id } = req.params;
+        let { id } = req.params;
+        const dataToken = req.userInfo?.data;
+
+        if (id !== undefined) {
+            if (!verifyPermissionUser(dataToken, 'admin')) {
+                exceptionUserUnauthorized(res);
+
+                return null;
+            }
+        } else {
+            id = req.userInfo?.sub;
+        }
         
         const user = await verifyUserExists(id);
 
@@ -490,21 +504,10 @@ const changePassword = async (req: Request, res: Response) => {
     }
 }
 
-const verifyUserExists = async (id: string) => {
-    let idNumber: number | undefined = Number(id);
-
-    if (isNaN(idNumber)) idNumber = undefined;
-
+const verifyUserExists = async (id: string | number | undefined) => {
     const user = prisma.usuario.findFirst({
         where: {
-            OR: [
-                {
-                    id: idNumber
-                },
-                {
-                    nome_usuario: id
-                }
-            ]
+            OR: filterIdOrUsername(id)
         }
     });
 
