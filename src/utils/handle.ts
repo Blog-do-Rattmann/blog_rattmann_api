@@ -65,13 +65,13 @@ const adjustLevelAccess = async (levels: []) => {
     return [];
 }
 
-const removeAllLevels = async (id: string) => {
-    let idNumber = Number(id);
+const removeAllLevels = async (id: string | number) => {
+    id = Number(id);
 
-    if (!isNaN(idNumber)) {
+    if (!isNaN(id)) {
         await prisma.usuario.update({
             where: {
-                id: idNumber
+                id: id
             },
             data: {
                 nivel_acesso: {
@@ -96,9 +96,44 @@ const createConnectId = (id: any) => {
     return undefined;
 }
 
+const verifyPermissionUser = (data: any, typeUser: string | string[]) => {
+    let userHasPermission = false;
+
+    if (data.estado_conta === 'ativo') {
+        data.nivel_acesso.forEach((level: string) => {
+            if (typeof typeUser === 'string') {
+                if (typeUser === level) {
+                    userHasPermission = true;
+                }
+            } else {
+                typeUser.forEach((type: string) => {
+                    if (type === level) {
+                        userHasPermission = true;
+                    }
+                });
+            }
+        });
+    }
+
+    return userHasPermission;
+}
+
+const filterIdOrUsername = (data: string | number | undefined) => {
+    return [
+        {
+            id: !isNaN(Number(data)) ? Number(data) : undefined
+        },
+        {
+            nome_usuario: typeof data === 'string' ? data : undefined
+        }
+    ]
+}
+
 export {
     adjustBirthday,
     adjustLevelAccess,
     removeAllLevels,
-    createConnectId
+    createConnectId,
+    verifyPermissionUser,
+    filterIdOrUsername
 }

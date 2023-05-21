@@ -14,7 +14,14 @@ const exceptionFieldInvalid = (res: Response, message: string) => {
     return null;
 }
 
+const exceptionUserUnauthorized = (res: Response) => {
+    return res
+    .status(403)
+    .send('Acesso não autorizado!');
+}
+
 export {
     exceptionUserNotFound,
-    exceptionFieldInvalid
+    exceptionFieldInvalid,
+    exceptionUserUnauthorized
 }
