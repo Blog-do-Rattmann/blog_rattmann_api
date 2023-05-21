@@ -23,6 +23,8 @@ const login = async (req: Request, res: Response, next: NextFunction) => {
     .then(async (response) => {
         await prisma.$disconnect();
 
+        console.log()
+
         if (response !== null) {
             const token = generateToken(res, response);
 
@@ -79,7 +81,7 @@ const login = async (req: Request, res: Response, next: NextFunction) => {
                     ]
                 },
                 include: {
-                    nivel_acesso: {
+                    permissao: {
                         select: {
                             nome: true
                         }
@@ -160,21 +162,17 @@ const generateToken = (res: Response, data: {
     nome: string,
     nome_usuario: string,
     estado_conta: string,
-    nivel_acesso: {
+    permissao: {
         nome: string
-    }[]
+    }
 }) => {
-    const listLevelAccess = data.nivel_acesso.map((level: { nome: string }) => {
-        return level.nome;
-    });
-
     const token = jwt.sign({
         sub: data.id,
         data: {
             nome: data.nome,
             nome_usuario: data.nome_usuario,
             estado_conta: data.estado_conta,
-            nivel_acesso: listLevelAccess
+            permissao: data.permissao.nome
         },
         exp: Math.floor(Date.now() / 1000) + (60 * 60)
     }, privateKey, { algorithm: 'ES512' }, (error, token) => {

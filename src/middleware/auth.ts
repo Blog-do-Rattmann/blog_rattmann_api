@@ -10,30 +10,36 @@ import {
     exceptionUserUnauthorized
 } from '../utils/exceptions';
 
-const auth = async (req: Request, res: Response, next: NextFunction) => {
-    if (req.originalUrl !== '/usuario/cadastrar') {
-        let token = req.headers['authorization'];
+const auth = (req: Request, res: Response, next: NextFunction) => {
+    let tokenValid = true;
+    let token = req.headers['authorization'];
+    
+    if (token !== undefined) {
+        token = token.replace('Bearer', '');
+        token = token.trim();
         
-        if (token !== undefined) {
-            token = token.replace('Bearer', '');
-            token = token.trim();
-    
-            jwt.verify(token, publicKey, (error: any, tokenDecoded: any) => {
-                if (error) {
-                    exceptionUserUnauthorized(res);
-                }
-    
-                req['userInfo'] = tokenDecoded;
-                next();
-            });
-
-            return true;
-        }
-    
-        return res
-        .status(401)
-        .send('Token inválido!');
+        jwt.verify(token, publicKey, (error: any, tokenDecoded: any) => {
+            if (error) {
+                tokenValid = false;
+            } else {
+                req.userInfo = tokenDecoded;
+            }
+        });
     }
+    
+    if (req.originalUrl !== '/usuario/cadastrar') {
+        if (token === undefined) {
+            return res
+            .status(401)
+            .send('Token inválido!');
+        }
+    }
+
+    if (!tokenValid) {
+        return exceptionUserUnauthorized(res);
+    }
+    
+    return next();
 }
 
 export default auth;

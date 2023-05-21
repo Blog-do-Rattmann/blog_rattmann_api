@@ -19,7 +19,8 @@ model Usuario {
   data_nascimento DateTime @db.Date()
   estado_conta EstadoConta @default(ativo)
   criado_em DateTime @default(now())
-  nivel_acesso Permissoes[]
+  permissaoId Int
+  permissao Permissoes @relation(fields: [permissaoId], references: [id])
   post Post[]
   comentario Comentario[]
   historico_login HistoricoLogin[]
