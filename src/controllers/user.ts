@@ -414,23 +414,25 @@ const changePassword = async (req: Request, res: Response) => {
         const { id } = req.params;
         const dataToken = req.userInfo?.data;
 
-        let idNumber = null;
+        let idNumber = req.userInfo?.sub;
 
         if (id !== undefined) {
+            idNumber = id;
+        }
+
+        const user = await verifyUserExists(idNumber);
+
+        if (user === null) return exceptionUserNotFound(res);
+
+        if (idNumber === null) idNumber = user.id;
+
+        if (idNumber !== req.userInfo?.sub) {
             if (!verifyPermissionUser(dataToken, 'admin')) {
                 exceptionUserUnauthorized(res);
 
                 return null;
             }
-        } else {
-            idNumber = req.userInfo?.sub;
         }
-
-        const user = await verifyUserExists(id);
-
-        if (user === null) return exceptionUserNotFound(res);
-
-        if (idNumber === null) idNumber = user.id;
         
         const data = await dataProcessing(user);
 
@@ -460,7 +462,7 @@ const changePassword = async (req: Request, res: Response) => {
 
             const {
                 senha_atual,
-                nova_senha
+                senha_nova
             } = fields;
 
             if (!validatePassword(senha_atual) || !await argon2.verify(user.senha, senha_atual)) {
@@ -471,7 +473,7 @@ const changePassword = async (req: Request, res: Response) => {
                 return null;
             }
 
-            if (!validatePassword(nova_senha)) {
+            if (!validatePassword(senha_nova)) {
                 res
                 .status(400)
                 .send('Nova senha não está no padrão correto!<br\>Precisa de pelo menos 8 caractes, uma letra minúscula, uma maiúscula, um número e um caracter especial.');
@@ -479,7 +481,7 @@ const changePassword = async (req: Request, res: Response) => {
                 return null;
             }
 
-            const hashPassword = await argon2.hash(nova_senha);
+            const hashPassword = await argon2.hash(senha_nova);
 
             data.senha = hashPassword;
 
@@ -510,7 +512,7 @@ const verifyFieldIncorrect = (fields: {}, typeRequest: string = 'register') => {
         if (typeRequest === 'change-password') {
             if (field === 'senha_atual') {
                 hasFieldIncorrect = false;
-            } else if (field === 'nova_senha') {
+            } else if (field === 'senha_nova') {
                 hasFieldIncorrect = false;
             } else {
                 nameFieldIncorrect = field;
