@@ -1,5 +1,5 @@
 import { Response } from 'express';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, AcaoUsuario } from '@prisma/client';
 import { execSync } from 'child_process';
 
 import { createConnectId } from './handle';
@@ -27,6 +27,40 @@ const createHistoryLogin = async (data: {
     }
 }
 
+const createHistoryUser = async (action: AcaoUsuario = 'alteracao', authorId: number, userId: number) => {
+    const data: {
+        acao: AcaoUsuario | undefined,
+        autor: {
+            connect: {
+                id: number
+            }
+        },
+        usuario: {
+            connect: {
+                id: number
+            }
+        }
+    } = {
+        acao: action,
+        autor: {
+            connect: {
+                id: authorId
+            }
+        },
+        usuario: {
+            connect: {
+                id: userId
+            }
+        }
+    }
+
+    const history = await prisma.historicoUsuario.create({
+        data: data
+    });
+
+    return history;
+}
+
 const displayResponseJson = (res: Response, status: number, context: any = '') => {
     if (typeof context === 'string' && context.trim() === '') {
         if (status === 500) context = 'Ocorreu um erro em nosso servidor.<br\>Tente novamente mais tarde!';
@@ -46,5 +80,6 @@ const getIp = () => {
 
 export {
     createHistoryLogin,
+    createHistoryUser,
     displayResponseJson
 }
