@@ -21,8 +21,9 @@ import {
 
 import {
     adjustBirthday,
-    verifyPermissionUser,
     filterIdOrUsername,
+    verifyIdTokenOrUser,
+    verifyPermissionUserToken,
     getIdPermission
 } from '../utils/handle';
 
@@ -223,7 +224,7 @@ const list = async (req: Request, res: Response) => {
     async function showList() {
         const dataToken = req.userInfo?.data;
 
-        if (!verifyPermissionUser(dataToken, 'admin')) return null;
+        if (!verifyPermissionUserToken(dataToken, 'admin')) return null;
 
         const users = prisma.usuario.findMany({
             include: {
@@ -282,25 +283,13 @@ const update = async (req: Request, res: Response) => {
         const { id } = req.params;
         const dataToken = req.userInfo?.data;
 
-        let idNumber = null;
+        const getIdVerified = await verifyIdTokenOrUser(res, dataToken, id, req.userInfo);
 
-        if (id !== undefined) {
-            if (!verifyPermissionUser(dataToken, 'admin')) {
-                exceptionUserUnauthorized(res);
+        if (getIdVerified === null) return null;
 
-                return null;
-            }
-        } else {
-            idNumber = req.userInfo?.sub;
-        }
+        const idNumber = getIdVerified.idNumber;
 
-        const user = await verifyUserExists(id);
-
-        if (user === null) return exceptionUserNotFound(res);
-
-        if (idNumber === null) idNumber = user.id;
-
-        const data = await dataProcessing(dataToken, idNumber);
+        const data = await dataProcessing(dataToken);
 
         if (data !== null) {
             const updated = await prisma.usuario.update({
@@ -322,7 +311,7 @@ const update = async (req: Request, res: Response) => {
         return null;
     }
 
-    async function dataProcessing(dataToken: any, id: number) {
+    async function dataProcessing(dataToken: any) {
         const fields = req.body;
 
         const { hasFieldIncorrect, nameFieldIncorrect } = verifyFieldIncorrect(fields, 'update');
@@ -403,42 +392,30 @@ const remove = async (req: Request, res: Response) => {
         let { id } = req.params;
         const dataToken = req.userInfo?.data;
 
-        if (id !== undefined) {
-            if (!verifyPermissionUser(dataToken, 'admin')) {
-                exceptionUserUnauthorized(res);
+        const getIdVerified = await verifyIdTokenOrUser(res, dataToken, id, req.userInfo);
 
-                return null;
-            }
-        } else {
-            id = req.userInfo?.sub;
-        }
+        if (getIdVerified === null) return null;
 
-        const user = await prisma.usuario.findFirst({
+        const idNumber = getIdVerified.idNumber;
+
+        await prisma.historicoUsuario.deleteMany({
             where: {
-                OR: filterIdOrUsername(id)
+                OR: [
+                    {
+                        autorId: idNumber
+                    },
+                    {
+                        usuarioId: idNumber
+                    }
+                ]
             }
         });
 
-        if (user !== null) {
-            await prisma.historicoUsuario.deleteMany({
-                where: {
-                    OR: [
-                        {
-                            autorId: user.id
-                        },
-                        {
-                            usuarioId: user.id
-                        }
-                    ]
-                }
-            });
-    
-            await prisma.usuario.deleteMany({
-                where: {
-                    id: user.id
-                }
-            });
-        }
+        await prisma.usuario.deleteMany({
+            where: {
+                id: idNumber
+            }
+        });
     }
 }
 
@@ -460,25 +437,12 @@ const changePassword = async (req: Request, res: Response) => {
         const { id } = req.params;
         const dataToken = req.userInfo?.data;
 
-        let idNumber = req.userInfo?.sub;
+        const getIdVerified = await verifyIdTokenOrUser(res, dataToken, id, req.userInfo);
 
-        if (id !== undefined) {
-            idNumber = id;
-        }
+        if (getIdVerified === null) return null;
 
-        const user = await verifyUserExists(idNumber);
-
-        if (user === null) return exceptionUserNotFound(res);
-
-        if (idNumber === null) idNumber = user.id;
-
-        if (idNumber !== req.userInfo?.sub) {
-            if (!verifyPermissionUser(dataToken, 'admin')) {
-                exceptionUserUnauthorized(res);
-
-                return null;
-            }
-        }
+        const idNumber = getIdVerified.idNumber;
+        const user = getIdVerified.user;
         
         const data = await dataProcessing(user);
 
@@ -544,16 +508,6 @@ const changePassword = async (req: Request, res: Response) => {
 
         return null;
     }
-}
-
-const verifyUserExists = async (id: string | number | undefined) => {
-    const user = prisma.usuario.findFirst({
-        where: {
-            OR: filterIdOrUsername(id)
-        }
-    });
-
-    return user;
 }
 
 const verifyFieldIncorrect = (fields: {}, typeRequest: string = 'register') => {
