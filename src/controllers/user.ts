@@ -4,7 +4,6 @@ import moment from 'moment';
 import argon2 from 'argon2';
 
 import {
-    exceptionUserNotFound,
     exceptionFieldInvalid,
     exceptionUserUnauthorized
 } from '../utils/exceptions';
@@ -24,7 +23,8 @@ import {
     filterIdOrUsername,
     verifyIdTokenOrUser,
     verifyPermissionUserToken,
-    getIdPermission
+    getIdPermission,
+    verifyFieldIncorrect
 } from '../utils/handle';
 
 import {
@@ -402,10 +402,10 @@ const remove = async (req: Request, res: Response) => {
             where: {
                 OR: [
                     {
-                        autorId: idNumber
+                        autor_id: idNumber
                     },
                     {
-                        usuarioId: idNumber
+                        usuario_id: idNumber
                     }
                 ]
             }
@@ -508,52 +508,6 @@ const changePassword = async (req: Request, res: Response) => {
 
         return null;
     }
-}
-
-const verifyFieldIncorrect = (fields: {}, typeRequest: string = 'register') => {
-    let hasFieldIncorrect = true;
-    let nameFieldIncorrect = '';
-
-    for (const field in fields) {
-        if (typeRequest === 'change-password') {
-            if (field === 'senha_atual') {
-                hasFieldIncorrect = false;
-            } else if (field === 'senha_nova') {
-                hasFieldIncorrect = false;
-            } else {
-                nameFieldIncorrect = field;
-            }
-        } else {
-            switch (field) {
-                case 'nome':
-                    hasFieldIncorrect = false;
-                break;
-                case 'nome_usuario':
-                    hasFieldIncorrect = false;
-                break;
-                case 'email':
-                    hasFieldIncorrect = false;
-                break;
-                case 'data_nascimento':
-                    hasFieldIncorrect = false;
-                break;
-                case 'nivel_acesso':
-                    hasFieldIncorrect = false;
-                break;
-                default:
-                    nameFieldIncorrect = field;
-    
-                    if (typeRequest === 'register') {
-                        if (field === 'senha') {
-                            hasFieldIncorrect = false;
-                            nameFieldIncorrect = '';
-                        }
-                    }
-            }
-        }
-    }
-
-    return { hasFieldIncorrect, nameFieldIncorrect };
 }
 
 export default {

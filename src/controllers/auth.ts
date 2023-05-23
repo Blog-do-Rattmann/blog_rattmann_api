@@ -2,19 +2,24 @@ import { Request, Response, NextFunction } from 'express';
 import { PrismaClient } from '@prisma/client';
 import argon2 from 'argon2';
 import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 
 import fs from 'fs';
 import path from 'path';
 
 const privateKey = fs.readFileSync(path.resolve(__dirname, '../../keys/private.key'));
 
-import { exceptionFieldInvalid } from '../utils/exceptions';
+import { exceptionUserNotFound, exceptionFieldInvalid } from '../utils/exceptions';
 
 import {
     validateData,
     validateUsername,
     validateEmail
 } from '../utils/validate';
+
+import {
+    verifyFieldIncorrect
+} from '../utils/handle';
 
 import { createHistoryLogin, displayResponseJson } from '../utils/middleware';
 
@@ -41,7 +46,7 @@ const login = async (req: Request, res: Response, next: NextFunction) => {
     async function verifyLogin() {
         const fields = req.body;
 
-        const { hasFieldIncorrect, nameFieldIncorrect } = verifyFieldIncorrect(fields);
+        const { hasFieldIncorrect, nameFieldIncorrect } = verifyFieldIncorrect(fields, 'post', 'login');
 
         if (!hasFieldIncorrect) {
             const {
@@ -126,24 +131,73 @@ const login = async (req: Request, res: Response, next: NextFunction) => {
     }
 }
 
-const verifyFieldIncorrect = (fields: {}) => {
-    let hasFieldIncorrect = true;
-    let nameFieldIncorrect = '';
+const forgotPassword = async (req: Request, res: Response) => {
+    await forgottenPassword()
+    .then(async () => {
+        await prisma.$disconnect();
+    })
+    .catch(async (err) => {
+        console.error(err);
+        await prisma.$disconnect();
 
-    for (const field in fields) {
-        switch (field) {
-            case 'login':
-                hasFieldIncorrect = false;
-            break;
-            case 'senha':
-                hasFieldIncorrect = false;
-            break;
-            default:
-                nameFieldIncorrect = field;
+        return displayResponseJson(res, 500);
+    });
+
+    async function forgottenPassword() {
+        const data = dataProcessing();
+
+        if (data !== null) {
+            const user = await prisma.usuario.findFirst({
+                where: {
+                    OR: [
+                        {
+                            nome_usuario: data
+                        },
+                        {
+                            email: data
+                        }
+                    ]
+                }
+            });
+
+            if (user !== null) {
+
+            }
         }
+
+        return exceptionUserNotFound(res);
     }
 
-    return { hasFieldIncorrect, nameFieldIncorrect };
+    function dataProcessing() {
+        const fields = req.body;
+
+        const { hasFieldIncorrect, nameFieldIncorrect } = verifyFieldIncorrect(fields, 'post', 'forgot-password');
+        
+        if (!hasFieldIncorrect) {
+            const {
+                login,
+                email,
+                nome_usuario
+            } = fields;
+    
+            if (validateData(login) && (validateUsername(login) || validateEmail(login))) return login;
+            if (validateData(nome_usuario) && validateUsername(nome_usuario)) return nome_usuario;
+            if (validateData(email) && validateEmail(email)) return email;
+
+            return null;
+        }
+
+        displayResponseJson(res, 400, `Campo ${nameFieldIncorrect} não existe!`);
+
+        return null;
+    }
+
+    async function passwordRecoveryToken() {
+        const hash = crypto.randomBytes(60).toString('hex');
+        const timeExpiration = new Date();
+
+        timeExpiration.setMinutes(timeExpiration.getMinutes() + 30);
+    }
 }
 
 const generateToken = (res: Response, data: {
@@ -178,4 +232,7 @@ const generateToken = (res: Response, data: {
     return token;
 }
 
-export default { login };
+export default {
+    login,
+    forgotPassword
+};
