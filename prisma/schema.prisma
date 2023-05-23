@@ -18,7 +18,7 @@ model Usuario {
   senha String @db.VarChar(255)
   data_nascimento DateTime @db.Date()
   estado_conta EstadoConta @default(ativo)
-  criado_em DateTime @default(now())
+  criado_em DateTime @default(dbgenerated("NOW()")) @db.DateTime()
   permissaoId Int
   permissao Permissoes @relation(fields: [permissaoId], references: [id])
   post Post[]
@@ -34,8 +34,8 @@ model Post {
   conteudo String? @db.MediumText()
   rascunho Boolean @default(false)
   exibir Boolean @default(true)
-  data_publicacao DateTime @default(now())
-  data_edicao DateTime? @default(now())
+  data_publicacao DateTime @default(dbgenerated("NOW()")) @db.DateTime()
+  data_edicao DateTime? @default(dbgenerated("NOW()")) @db.DateTime()
   editado_por String? @db.VarChar(100)
   autorId Int
   autor Usuario @relation(fields: [autorId], references: [id])
@@ -57,8 +57,8 @@ model Categoria {
 model Comentario {
   id Int @id @default(autoincrement())
   conteudo String @db.Text()
-  data_publicacao DateTime @default(now())
-  data_edicao DateTime? @default(now())
+  data_publicacao DateTime @default(dbgenerated("NOW()")) @db.DateTime()
+  data_edicao DateTime? @default(dbgenerated("NOW()")) @db.DateTime()
   avaliacao Avaliacao[]
   autorId Int
   publicacaoId Int
@@ -94,7 +94,7 @@ model HistoricoLogin {
   usuario Usuario? @relation(fields: [usuarioId], references: [id])
   sucesso Boolean
   erro String? @db.VarChar(255)
-  data DateTime @default(now())
+  data DateTime @default(dbgenerated("NOW()")) @db.DateTime()
 
   @@map("historico_login")
 }
