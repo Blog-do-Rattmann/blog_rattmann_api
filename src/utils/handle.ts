@@ -10,10 +10,6 @@ import {
     exceptionUserUnauthorized
 } from '../utils/exceptions';
 
-import {
-    displayResponseJson
-} from '../utils/middleware';
-
 const adjustBirthday = (date: string) => {
     if (validateData(date)) {
         var splitDate = date.split('-');
