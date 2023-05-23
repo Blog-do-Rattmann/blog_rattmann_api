@@ -27,6 +27,7 @@ import {
 } from '../utils/handle';
 
 import {
+    createHistoryUser,
     displayResponseJson
 } from '../utils/middleware';
 
@@ -61,12 +62,22 @@ const register = async (req: Request, res: Response) => {
     });
 
     async function createUser() {
-        const data = await dataProcessing();
+        const dataToken = req.userInfo?.data;
+
+        const data = await dataProcessing(dataToken);
 
         if (data !== null) {
             const user = await prisma.usuario.create({
                 data: data
             });
+
+            if (user !== null) {
+                if (dataToken?.permissao === 'admin') {
+                    const id = req.userInfo?.sub;
+
+                    await createHistoryUser('inclusao', id, user.id);
+                }
+            }
 
             return user;
         }
@@ -74,14 +85,12 @@ const register = async (req: Request, res: Response) => {
         return null;
     }
 
-    async function dataProcessing() {
+    async function dataProcessing(dataToken: any) {
         const fields = req.body;
 
         const { hasFieldIncorrect, nameFieldIncorrect } = verifyFieldIncorrect(fields);
         
         if (!hasFieldIncorrect) {
-            const dataToken = req.userInfo?.data;
-
             const {
                 nome,
                 nome_usuario,
@@ -300,6 +309,12 @@ const update = async (req: Request, res: Response) => {
                 },
                 data: data
             });
+            
+            if (updated !== null) {
+                const id = req.userInfo?.sub;
+
+                await createHistoryUser('alteracao', id, updated.id);
+            }
 
             return updated;
         }
@@ -336,15 +351,25 @@ const update = async (req: Request, res: Response) => {
             } = fields;
     
             const birthday = adjustBirthday(data_nascimento);
-            data.permissao.connect.id = 3;
+            data.permissao = {
+                connect: {
+                    id: 3
+                }
+            }
     
             if (validateData(nome) && validateName(nome)) data.nome = nome;
-            if (validateData(nome_usuario) && validateUsername(nome)) data.nome_usuario = nome_usuario;
+            if (validateData(nome_usuario) && validateUsername(nome_usuario)) data.nome_usuario = nome_usuario;
             if (validateData(email) && validateEmail(email)) data.email = email;
             if (validateData(data_nascimento) && birthday !== false) data.data_nascimento = birthday;
 
             if (dataToken.permissao === 'admin') {
-                if (validateData(permissao) && await validatePermission(permissao)) data.permissao.connect.id = permissao;
+                if (validateData(permissao) && await validatePermission(permissao)) {
+                    data.permissao = {
+                        connect: {
+                            id: permissao
+                        }
+                    }
+                }
             }
     
             return data;
@@ -388,11 +413,32 @@ const remove = async (req: Request, res: Response) => {
             id = req.userInfo?.sub;
         }
 
-        await prisma.usuario.deleteMany({
+        const user = await prisma.usuario.findFirst({
             where: {
                 OR: filterIdOrUsername(id)
             }
         });
+
+        if (user !== null) {
+            await prisma.historicoUsuario.deleteMany({
+                where: {
+                    OR: [
+                        {
+                            autorId: user.id
+                        },
+                        {
+                            usuarioId: user.id
+                        }
+                    ]
+                }
+            });
+    
+            await prisma.usuario.deleteMany({
+                where: {
+                    id: user.id
+                }
+            });
+        }
     }
 }
 
@@ -443,6 +489,12 @@ const changePassword = async (req: Request, res: Response) => {
                 },
                 data: data
             });
+
+            if (changedPassword !== null) {
+                const id = req.userInfo?.sub;
+
+                await createHistoryUser('trocar_senha', id, changedPassword.id);
+            }
 
             return changedPassword;
         }
@@ -523,7 +575,7 @@ const verifyFieldIncorrect = (fields: {}, typeRequest: string = 'register') => {
                     hasFieldIncorrect = false;
                 break;
                 case 'nome_usuario':
-                    hasFieldIncorrect = true;
+                    hasFieldIncorrect = false;
                 break;
                 case 'email':
                     hasFieldIncorrect = false;

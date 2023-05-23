@@ -24,6 +24,8 @@ model Usuario {
   post Post[]
   comentario Comentario[]
   historico_login HistoricoLogin[]
+  historico_usuario_autor HistoricoUsuario[] @relation("autor")
+  historico_usuario HistoricoUsuario[]
   
   @@map("usuarios")
 }
@@ -99,9 +101,28 @@ model HistoricoLogin {
   @@map("historico_login")
 }
 
+model HistoricoUsuario {
+  id Int @id @default(autoincrement())
+  acao AcaoUsuario @default(alteracao)
+  data DateTime @default(dbgenerated("NOW()")) @db.DateTime()
+  autorId Int
+  autor Usuario @relation(fields: [autorId], references: [id], name: "autor")
+  usuarioId Int
+  usuario Usuario @relation(fields: [usuarioId], references: [id])
+
+  @@map("historico_usuario")
+}
+
 enum EstadoConta {
   ativo
   inativo
   banido
   bloqueado
+}
+
+enum AcaoUsuario {
+  inclusao
+  alteracao
+  trocar_senha
+  status
 }
