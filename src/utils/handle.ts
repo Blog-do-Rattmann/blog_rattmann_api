@@ -217,7 +217,7 @@ const verifyFieldIncorrect = (fields: {}, typeMethod: string = 'post', typeReque
         }
     }
 
-    if (typeMethod !== 'patch' && expectedFieldsCount === countFields) hasFieldIncorrect = false;
+    if (typeMethod !== 'patch' && countFields > 0 && expectedFieldsCount === countFields) hasFieldIncorrect = false;
 
     return { hasFieldIncorrect, nameFieldIncorrect };
 }

@@ -161,11 +161,19 @@ const forgotPassword = async (req: Request, res: Response) => {
             });
 
             if (user !== null) {
+                const token = await passwordRecoveryToken(user.id);
 
+                if (token !== null) {
+                    console.log(token)
+
+                    // Criar função para enviar e-mail com dados em dotenv
+                }
+
+                return null;
             }
-        }
 
-        return exceptionUserNotFound(res);
+            return exceptionUserNotFound(res);
+        }
     }
 
     function dataProcessing() {
@@ -187,16 +195,49 @@ const forgotPassword = async (req: Request, res: Response) => {
             return null;
         }
 
+        if (nameFieldIncorrect === '') {
+            displayResponseJson(res, 400, 'Nenhum campo foi preenchido!');
+
+            return null;
+        }
+
         displayResponseJson(res, 400, `Campo ${nameFieldIncorrect} não existe!`);
 
         return null;
     }
 
-    async function passwordRecoveryToken() {
-        const hash = crypto.randomBytes(60).toString('hex');
+    async function passwordRecoveryToken(id: number) {
+        const token = crypto.randomBytes(60).toString('hex');
         const timeExpiration = new Date();
 
         timeExpiration.setMinutes(timeExpiration.getMinutes() + 30);
+
+        const recovery = await prisma.recuperacaoSenha.upsert({
+            where: {
+                usuario_id: id,
+            },
+            update: {
+                token: token,
+                tempo: timeExpiration
+            },
+            create: {
+                token: token,
+                tempo: timeExpiration,
+                usuario: {
+                    connect: {
+                        id: id
+                    }
+                }
+            }
+        });
+
+        if (recovery === null) {
+            displayResponseJson(res, 400, 'Não foi possível gerar token de recuperação de senha!');
+
+            return null;
+        }
+
+        return token;
     }
 }
 
