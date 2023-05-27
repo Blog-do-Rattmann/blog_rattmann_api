@@ -4,6 +4,8 @@ import argon2 from 'argon2';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import nodemailer from 'nodemailer';
+import moment from 'moment';
+import 'moment-timezone';
 
 import fs from 'fs';
 import path from 'path';
@@ -15,7 +17,8 @@ import { exceptionUserNotFound, exceptionFieldInvalid } from '../utils/exception
 import {
     validateData,
     validateUsername,
-    validateEmail
+    validateEmail,
+    validatePassword
 } from '../utils/validate';
 
 import {
@@ -213,9 +216,9 @@ const forgotPassword = async (req: Request, res: Response) => {
 
     async function passwordRecoveryToken(id: number) {
         const token = crypto.randomBytes(60).toString('hex');
-        const timeExpiration = new Date();
-
-        timeExpiration.setMinutes(timeExpiration.getMinutes() + 30);
+        // Moment converte a data atual de UTC para fuso horário de São Paulo, adiciona 30 minutos e
+        // formata para um padrão aceito pelo prisma
+        const timeExpiration = moment().add(30, 'minutes').tz('America/Sao_Paulo').format('YYYY-MM-DD[T]HH:mm:ss.SSS[Z]');
 
         const recovery = await prisma.recuperacaoSenha.upsert({
             where: {
@@ -379,13 +382,106 @@ const forgotPassword = async (req: Request, res: Response) => {
                 infoEmail = info;
             });
 
-            console.log(validEmail)
-            console.log(infoEmail)
-
             return validEmail;
         }
 
         return verifySmtpServer;
+    }
+}
+
+const recoveryPassword = async (req: Request, res: Response) => {
+    await changePassword()
+    .then(async () => {
+        await prisma.$disconnect();
+    })
+    .catch(async (err) => {
+        console.error(err);
+        await prisma.$disconnect();
+
+        return displayResponseJson(res, 500);
+    });
+
+    async function changePassword() {
+        const data = dataProcessing();
+
+        if (data !== null) {
+            const { token } = req.params;
+
+            if (token !== undefined) {
+                const verifyToken = await prisma.recuperacaoSenha.findFirst({
+                    where: {
+                        token: token
+                    },
+                    include: {
+                        usuario: true
+                    }
+                });
+
+                if (verifyToken === null) return displayResponseJson(res, 401, 'Token inválido para recuperação de senha!');
+
+                const timeNow = moment();
+                const dateTokenUtc = moment(verifyToken.tempo)
+                                    .utc()
+                                    .format('YYYY-MM-DD[T]HH:mm:ss');
+                // Pega a data recuperada do banco em UTC e converte para o formato do moment
+                const dateToken = moment(dateTokenUtc);
+
+                const hash = await argon2.hash(data);
+
+                if (!timeNow.isAfter(dateToken)) {
+                    const updatePassword = await prisma.usuario.update({
+                        where: {
+                            id: verifyToken.usuario_id
+                        },
+                        data: {
+                            senha: hash
+                        }
+                    });
+
+                    if (updatePassword === null) return displayResponseJson(res, 500, 'Não foi possível atualizar senha!');
+
+                    await prisma.recuperacaoSenha.update({
+                        where: {
+                            id: verifyToken.id
+                        },
+                        data: {
+                            token: null,
+                            tempo: null
+                        }
+                    });
+
+                    return displayResponseJson(res, 200, 'Senha recuperada com sucesso. Agora é possível realizar login!');
+                }
+
+                return displayResponseJson(res, 403, 'Tempo para recuperação de senha expirou.<br/>Faça uma nova solicitação para recuperação!');
+            }
+        }
+    }
+
+    function dataProcessing() {
+        const fields = req.body;
+
+        const { hasFieldIncorrect, nameFieldIncorrect } = verifyFieldIncorrect(fields, 'post', 'recovery-password');
+        
+        if (!hasFieldIncorrect) {
+            const {
+                senha,
+            } = fields;
+    
+            if (!validateData(senha) || !validatePassword(senha)) return exceptionFieldInvalid(res, 'Senha não está no padrão correto!<br\>Precisa de pelo menos 8 caractes, uma letra minúscula, uma maiúscula, um número e um caracter especial.');
+
+            return senha.trim();
+        }
+
+        if (nameFieldIncorrect === '') {
+            displayResponseJson(res, 400, 'Nenhum campo foi preenchido!');
+
+            return null;
+        }
+
+        displayResponseJson(res, 400, `Campo ${nameFieldIncorrect} não existe!`);
+
+        return null;
     }
 }
 
@@ -423,5 +519,6 @@ const generateToken = (res: Response, data: {
 
 export default {
     login,
-    forgotPassword
+    forgotPassword,
+    recoveryPassword
 };

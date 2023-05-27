@@ -314,7 +314,7 @@ const update = async (req: Request, res: Response) => {
     async function dataProcessing(dataToken: any) {
         const fields = req.body;
 
-        const { hasFieldIncorrect, nameFieldIncorrect } = verifyFieldIncorrect(fields, 'update');
+        const { hasFieldIncorrect, nameFieldIncorrect } = verifyFieldIncorrect(fields, 'patch', 'update');
         
         if (!hasFieldIncorrect) {
             interface IData {
@@ -469,7 +469,7 @@ const changePassword = async (req: Request, res: Response) => {
     async function dataProcessing(user: any) {
         const fields = req.body;
 
-        const { hasFieldIncorrect, nameFieldIncorrect } = verifyFieldIncorrect(fields, 'change-password');
+        const { hasFieldIncorrect, nameFieldIncorrect } = verifyFieldIncorrect(fields, 'put', 'change-password');
         
         if (!hasFieldIncorrect) {
             interface IData { senha: string };

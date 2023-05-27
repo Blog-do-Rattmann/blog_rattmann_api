@@ -26,6 +26,7 @@
     "@types/jsonwebtoken": "^9.0.2",
     "@types/node": "^20.1.0",
     "@types/nodemailer": "^6.4.8",
+    "moment-timezone": "^0.5.43",
     "prisma": "^4.13.0",
     "ts-node-dev": "^2.0.0",
     "tslib": "^2.5.0",

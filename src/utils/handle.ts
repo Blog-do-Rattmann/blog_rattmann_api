@@ -137,13 +137,15 @@ const verifyFieldIncorrect = (fields: {}, typeMethod: string = 'post', typeReque
     typeMethod = typeMethod.toLowerCase().trim();
     typeRequest = typeRequest.toLowerCase().trim();
 
-    const countFields = Object.keys(fields).length;
+    const fieldsCount = Object.keys(fields).length;
 
     let expectedFieldsCount = 0;
+    let verifyFieldsCount = false;
 
     for (const field in fields) {
         if (typeRequest === 'change-password') {
             expectedFieldsCount = 2;
+            verifyFieldsCount = true;
 
             switch (field) {
                 case 'senha_atual':
@@ -157,6 +159,7 @@ const verifyFieldIncorrect = (fields: {}, typeMethod: string = 'post', typeReque
             }
         } else if (typeRequest === 'login') {
             expectedFieldsCount = 2;
+            verifyFieldsCount = true;
 
             switch (field) {
                 case 'login':
@@ -170,6 +173,7 @@ const verifyFieldIncorrect = (fields: {}, typeMethod: string = 'post', typeReque
             }
         } else if (typeRequest === 'forgot-password') {
             expectedFieldsCount = 1;
+            verifyFieldsCount = true;
 
             switch (field) {
                 case 'login':
@@ -184,8 +188,19 @@ const verifyFieldIncorrect = (fields: {}, typeMethod: string = 'post', typeReque
                 default:
                     nameFieldIncorrect = field;
             }
+        } else if (typeRequest === 'recovery-password') {
+            expectedFieldsCount = 1;
+
+            switch (field) {
+                case 'senha':
+                    hasFieldIncorrect = false;
+                break;
+                default:
+                    nameFieldIncorrect = field;
+            }
         } else {
-            expectedFieldsCount = 5
+            expectedFieldsCount = 5;
+            verifyFieldsCount = true;
 
             switch (field) {
                 case 'nome':
@@ -217,7 +232,11 @@ const verifyFieldIncorrect = (fields: {}, typeMethod: string = 'post', typeReque
         }
     }
 
-    if (typeMethod !== 'patch' && countFields > 0 && expectedFieldsCount === countFields) hasFieldIncorrect = false;
+    console.log(verifyFieldsCount)
+    console.log(fieldsCount)
+    console.log(expectedFieldsCount)
+
+    if (typeMethod !== 'patch' && verifyFieldsCount && fieldsCount > 0 && expectedFieldsCount === fieldsCount) hasFieldIncorrect = false;
 
     return { hasFieldIncorrect, nameFieldIncorrect };
 }
