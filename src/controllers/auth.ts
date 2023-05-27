@@ -3,6 +3,7 @@ import { PrismaClient } from '@prisma/client';
 import argon2 from 'argon2';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
+import nodemailer from 'nodemailer';
 
 import fs from 'fs';
 import path from 'path';
@@ -22,6 +23,8 @@ import {
 } from '../utils/handle';
 
 import { createHistoryLogin, displayResponseJson } from '../utils/middleware';
+
+import { convertStringToBoolean } from '../utils/global';
 
 const prisma = new PrismaClient();
 
@@ -164,12 +167,14 @@ const forgotPassword = async (req: Request, res: Response) => {
                 const token = await passwordRecoveryToken(user.id);
 
                 if (token !== null) {
-                    console.log(token)
+                    const emailSent = await sendMail(user, token);
 
-                    // Criar função para enviar e-mail com dados em dotenv
+                    if (emailSent) return displayResponseJson(res, 200, 'E-mail de recuperação enviado com sucesso!');
+
+                    return displayResponseJson(res, 502, 'Não foi possível enviar o e-mail de recuperação. Tente novamente mais tarde!');
                 }
 
-                return null;
+                return displayResponseJson(res, 502, 'Não foi possível gerar o token de recuperação. Tente novamente mais tarde!');
             }
 
             return exceptionUserNotFound(res);
@@ -238,6 +243,149 @@ const forgotPassword = async (req: Request, res: Response) => {
         }
 
         return token;
+    }
+
+    async function sendMail(user: any, token: string) {
+        const secure = String(process.env.MAIL_SECURE);
+
+        const smtpSettings: {
+            host: string,
+            port: number,
+            secure: boolean,
+            auth: {
+                user: string,
+                pass: string
+            }
+        } = {
+            host: String(process.env.MAIL_HOST),
+            port: Number(process.env.MAIL_PORT),
+            secure: convertStringToBoolean(secure),
+            auth: {
+                user: String(process.env.MAIL_USER),
+                pass: String(process.env.MAIL_PASSWORD)
+            }
+        }
+
+        const bodyMail: {
+            from: string,
+            to: string,
+            subject: string,
+            text: string,
+            html: string
+        } = {
+            from: `"${String(process.env.MAIL_FROM_NAME)}" ${String(process.env.MAIL_FROM_ADDRESS)}`,
+            to: user.email,
+            subject: 'Recuperação de Senha',
+            text: `
+            Caro ${String(user.nome)},
+            
+            Entramos em contato para fornecer o acesso para recuperação da sua senha.
+            
+            Necessário acessar o link abaixo para iniciar o processo:
+            http://localhost:3000/recuperar-senha/${token}
+            
+            Caso não tenha feito a solicitação, sugerimos que troque sua senha.`,
+            html: `
+            <!DOCTYPE html>
+            <html lang="pt-br">
+                <head>
+                    <meta charset="UTF-8">
+                    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                    <title>Document</title>
+                    <style>
+                        body {
+                            background-color: #f6f6f6;
+                            color: #2b2b2b;
+                            -webkit-font-smoothing: antialiased;
+                            line-height: 1.4;
+                            margin: 0;
+                            padding: 0;
+                            -ms-text-size-adjust: 100%;
+                            -webkit-text-size-adjust: 100%;
+                            font-family: Arial, Helvetica, sans-serif;
+                            font-size: 16px;
+                        }
+
+                        a {
+                            background-color: #036ffc;
+                            color: #fff;
+                            padding: 12px 25px;
+                            margin: 0;
+                            border-radius: 10px;
+                            text-decoration: none;
+                            text-transform: capitalize;
+                            font-weight: 700;
+                        }
+
+                        .aviso {
+                            color: #ad4242;
+                        }
+                    </style>
+                </head>
+                <body>
+                    <table border="0" cellpadding="0" cellspacing="0" class="">
+                        <tbody>
+                            <tr>
+                                <td>
+                                    <p>Caro <strong>${String(user.nome)}</strong>,</p>
+                                    <p>Entramos em contato para fornecer o acesso para recuperação da sua senha.</p>
+                                    <p style="padding-bottom: 8px;">
+                                        <span style="padding-bottom: 12px; display: block;">Necessário acessar o link abaixo para iniciar o processo:</span>
+                                        <a href="http://localhost:3000/recuperar-senha/${token}">
+                                            Recuperar Senha
+                                        </a>
+                                        <br/>
+                                    </p>
+                                    <p>
+                                        Se não conseguir acessar o link clicando no botão, copie o link abaixo e cole em seu navegador:
+                                        <br/>
+                                        <i>http://localhost:3000/recuperar-senha/${token}</i>
+                                    </p>
+                                    <p class="aviso">
+                                        Caso não tenha feito a solicitação, sugerimos que troque sua senha.
+                                    </p>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </body>
+            </html>`
+        }
+
+        let transporter = nodemailer.createTransport(smtpSettings);
+
+        let verifySmtpServer = true;
+        
+        transporter.verify((error, success) => {
+            if (error) {
+                console.error(error)
+
+                verifySmtpServer = false;
+            }
+        });
+
+        let validEmail = true;
+        let infoEmail = null;
+
+        if (verifySmtpServer) {
+            transporter.sendMail(bodyMail, (error, info) => {
+                if (error) {
+                    console.error(error)
+
+                    validEmail = false;
+                }
+
+                infoEmail = info;
+            });
+
+            console.log(validEmail)
+            console.log(infoEmail)
+
+            return validEmail;
+        }
+
+        return verifySmtpServer;
     }
 }
 
