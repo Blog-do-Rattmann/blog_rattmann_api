@@ -19,13 +19,14 @@ model Usuario {
   data_nascimento DateTime @db.Date()
   estado_conta EstadoConta @default(ativo)
   criado_em DateTime @default(dbgenerated("NOW()")) @db.DateTime()
-  permissaoId Int
-  permissao Permissoes @relation(fields: [permissaoId], references: [id])
+  permissao_id Int
+  permissao Permissoes @relation(fields: [permissao_id], references: [id])
   post Post[]
   comentario Comentario[]
   historico_login HistoricoLogin[]
   historico_usuario_autor HistoricoUsuario[] @relation("autor")
   historico_usuario HistoricoUsuario[]
+  recuperacao_senha RecuperacaoSenha?
   
   @@map("usuarios")
 }
@@ -39,8 +40,8 @@ model Post {
   data_publicacao DateTime @default(dbgenerated("NOW()")) @db.DateTime()
   data_edicao DateTime? @default(dbgenerated("NOW()")) @db.DateTime()
   editado_por String? @db.VarChar(100)
-  autorId Int
-  autor Usuario @relation(fields: [autorId], references: [id])
+  autor_id Int
+  autor Usuario @relation(fields: [autor_id], references: [id])
   categoria Categoria[]
   comentario Comentario[]
 
@@ -62,10 +63,10 @@ model Comentario {
   data_publicacao DateTime @default(dbgenerated("NOW()")) @db.DateTime()
   data_edicao DateTime? @default(dbgenerated("NOW()")) @db.DateTime()
   avaliacao Avaliacao[]
-  autorId Int
-  publicacaoId Int
-  autor Usuario @relation(fields: [autorId], references: [id])
-  publicacao Post @relation(fields: [publicacaoId], references: [id])
+  autor_id Int
+  publicacao_id Int
+  autor Usuario @relation(fields: [autor_id], references: [id])
+  publicacao Post @relation(fields: [publicacao_id], references: [id])
 
   @@map("comentarios")
 }
@@ -73,8 +74,8 @@ model Comentario {
 model Avaliacao {
   id Int @id @default(autoincrement())
   notas Int
-  comentarioId Int
-  comentario Comentario @relation(fields: [comentarioId], references: [id])
+  comentario_id Int
+  comentario Comentario @relation(fields: [comentario_id], references: [id])
 
   @@map("avaliacoes")
 }
@@ -92,8 +93,8 @@ model HistoricoLogin {
   id Int @id @default(autoincrement())
   ip String @db.VarChar(15)
   login String @db.VarChar(150)
-  usuarioId Int?
-  usuario Usuario? @relation(fields: [usuarioId], references: [id])
+  usuario_id Int?
+  usuario Usuario? @relation(fields: [usuario_id], references: [id])
   sucesso Boolean
   erro String? @db.VarChar(255)
   data DateTime @default(dbgenerated("NOW()")) @db.DateTime()
@@ -105,12 +106,22 @@ model HistoricoUsuario {
   id Int @id @default(autoincrement())
   acao AcaoUsuario @default(alteracao)
   data DateTime @default(dbgenerated("NOW()")) @db.DateTime()
-  autorId Int
-  autor Usuario @relation(fields: [autorId], references: [id], name: "autor")
-  usuarioId Int
-  usuario Usuario @relation(fields: [usuarioId], references: [id])
+  autor_id Int
+  autor Usuario @relation(fields: [autor_id], references: [id], name: "autor")
+  usuario_id Int
+  usuario Usuario @relation(fields: [usuario_id], references: [id])
 
   @@map("historico_usuario")
+}
+
+model RecuperacaoSenha {
+  id Int @id @default(autoincrement())
+  token String? @db.VarChar(255)
+  tempo DateTime? @db.DateTime()
+  usuario_id Int @unique
+  usuario Usuario @relation(fields: [usuario_id], references: [id])
+
+  @@map("recuperacao_senha")
 }
 
 enum EstadoConta {

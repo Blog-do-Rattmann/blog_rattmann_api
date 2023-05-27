@@ -130,11 +130,123 @@ const verifyUserExists = async (id: string | number | undefined) => {
     return user;
 }
 
+const verifyFieldIncorrect = (fields: {}, typeMethod: string = 'post', typeRequest: string = 'register') => {
+    let hasFieldIncorrect = true;
+    let nameFieldIncorrect = '';
+
+    typeMethod = typeMethod.toLowerCase().trim();
+    typeRequest = typeRequest.toLowerCase().trim();
+
+    const fieldsCount = Object.keys(fields).length;
+
+    let expectedFieldsCount = 0;
+    let verifyFieldsCount = false;
+
+    for (const field in fields) {
+        if (typeRequest === 'change-password') {
+            expectedFieldsCount = 2;
+            verifyFieldsCount = true;
+
+            switch (field) {
+                case 'senha_atual':
+                    hasFieldIncorrect = false;
+                break;
+                case 'senha_nova':
+                    hasFieldIncorrect = false;
+                break;
+                default:
+                    nameFieldIncorrect = field;
+            }
+        } else if (typeRequest === 'login') {
+            expectedFieldsCount = 2;
+            verifyFieldsCount = true;
+
+            switch (field) {
+                case 'login':
+                    hasFieldIncorrect = false;
+                break;
+                case 'senha':
+                    hasFieldIncorrect = false;
+                break;
+                default:
+                    nameFieldIncorrect = field;
+            }
+        } else if (typeRequest === 'forgot-password') {
+            expectedFieldsCount = 1;
+            verifyFieldsCount = true;
+
+            switch (field) {
+                case 'login':
+                    hasFieldIncorrect = false;
+                break;
+                case 'email':
+                    hasFieldIncorrect = false;
+                break;
+                case 'nome_usuario':
+                    hasFieldIncorrect = false;
+                break;
+                default:
+                    nameFieldIncorrect = field;
+            }
+        } else if (typeRequest === 'recovery-password') {
+            expectedFieldsCount = 1;
+
+            switch (field) {
+                case 'senha':
+                    hasFieldIncorrect = false;
+                break;
+                default:
+                    nameFieldIncorrect = field;
+            }
+        } else {
+            expectedFieldsCount = 5;
+            verifyFieldsCount = true;
+
+            switch (field) {
+                case 'nome':
+                    hasFieldIncorrect = false;
+                break;
+                case 'nome_usuario':
+                    hasFieldIncorrect = false;
+                break;
+                case 'email':
+                    hasFieldIncorrect = false;
+                break;
+                case 'data_nascimento':
+                    hasFieldIncorrect = false;
+                break;
+                case 'permissao':
+                    hasFieldIncorrect = false;
+                break;
+                default:
+                    nameFieldIncorrect = field;
+
+                    if (typeRequest === 'register') {
+                        expectedFieldsCount = 6;
+
+                        if (field === 'senha') {
+                            hasFieldIncorrect = false;
+                        }
+                    }
+            }
+        }
+    }
+
+    console.log(verifyFieldsCount)
+    console.log(fieldsCount)
+    console.log(expectedFieldsCount)
+
+    if (typeMethod !== 'patch' && verifyFieldsCount && fieldsCount > 0 && expectedFieldsCount === fieldsCount) hasFieldIncorrect = false;
+
+    return { hasFieldIncorrect, nameFieldIncorrect };
+}
+
 export {
     adjustBirthday,
     createConnectId,
     filterIdOrUsername,
     verifyIdTokenOrUser,
     verifyPermissionUserToken,
-    getIdPermission
+    getIdPermission,
+    verifyFieldIncorrect
 }
