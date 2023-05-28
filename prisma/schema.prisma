@@ -18,6 +18,7 @@ model Usuario {
   senha String @db.VarChar(255)
   data_nascimento DateTime @db.Date()
   estado_conta EstadoConta @default(ativo)
+  duracao_estado DateTime? @db.Timestamp()
   criado_em DateTime @default(dbgenerated("NOW()")) @db.DateTime()
   permissao_id Int
   permissao Permissoes @relation(fields: [permissao_id], references: [id])

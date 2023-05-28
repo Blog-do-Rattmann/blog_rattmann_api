@@ -510,11 +510,109 @@ const changePassword = async (req: Request, res: Response) => {
     }
 }
 
+const changeStatus = async (req: Request, res: Response) => {
+    await updateStatus()
+    .then(async (response) => {
+        await prisma.$disconnect();
+
+        if (response !== null) return displayResponseJson(res, 200, 'Senha alterada com sucesso!');
+    })
+    .catch(async (err) => {
+        console.error(err);
+        await prisma.$disconnect();
+
+        return displayResponseJson(res, 500);
+    });
+
+    async function updateStatus() {
+        const { id } = req.params;
+        const dataToken = req.userInfo?.data;
+
+        const getIdVerified = await verifyIdTokenOrUser(res, dataToken, id, req.userInfo);
+
+        if (getIdVerified === null) return null;
+
+        const idNumber = getIdVerified.idNumber;
+        const user = getIdVerified.user;
+        
+        const data = await dataProcessing(user);
+
+        // if (data !== null) {
+        //     const changedPassword = await prisma.usuario.update({
+        //         where: {
+        //             id: idNumber
+        //         },
+        //         data: data
+        //     });
+
+        //     if (changedPassword !== null) {
+        //         const id = req.userInfo?.sub;
+
+        //         await createHistoryUser('trocar_senha', id, changedPassword.id);
+        //     }
+
+        //     return changedPassword;
+        // }
+
+        return null;
+    }
+
+    async function dataProcessing(user: any) {
+        const fields = req.body;
+
+        const { hasFieldIncorrect, nameFieldIncorrect } = verifyFieldIncorrect(fields, 'put', 'change-status');
+
+        console.log(hasFieldIncorrect)
+        console.log(nameFieldIncorrect)
+        
+        if (!hasFieldIncorrect) {
+            interface IData {
+                tipo_estado: string;
+                duracao?: Date | null;
+            };
+
+            const data = {} as IData;
+
+            const {
+                tipo_estado,
+                duracao
+            } = fields;
+
+            // if (!validatePassword(senha_atual) || !await argon2.verify(user.senha, senha_atual)) {
+            //     res
+            //     .status(400)
+            //     .send('Senha atual não confere!');
+
+            //     return null;
+            // }
+
+            // if (!validatePassword(senha_nova)) {
+            //     res
+            //     .status(400)
+            //     .send('Nova senha não está no padrão correto!<br\>Precisa de pelo menos 8 caractes, uma letra minúscula, uma maiúscula, um número e um caracter especial.');
+
+            //     return null;
+            // }
+
+            // const hashPassword = await argon2.hash(senha_nova);
+
+            // data.senha = hashPassword;
+
+            // return data;
+        }
+
+        displayResponseJson(res, 400, `Campo ${nameFieldIncorrect} não existe!`);
+
+        return null;
+    }
+}
+
 export default {
     register,
     profile,
     list,
     update,
     remove,
-    changePassword
+    changePassword,
+    changeStatus
 }

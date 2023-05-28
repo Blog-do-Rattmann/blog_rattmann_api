@@ -130,7 +130,7 @@ const verifyUserExists = async (id: string | number | undefined) => {
     return user;
 }
 
-const verifyFieldIncorrect = (fields: {}, typeMethod: string = 'post', typeRequest: string = 'register') => {
+const verifyFieldIncorrect = (fields: any, typeMethod: string = 'post', typeRequest: string = 'register') => {
     let hasFieldIncorrect = true;
     let nameFieldIncorrect = '';
 
@@ -198,6 +198,26 @@ const verifyFieldIncorrect = (fields: {}, typeMethod: string = 'post', typeReque
                 default:
                     nameFieldIncorrect = field;
             }
+        } else if (typeRequest === 'change-status') {
+            expectedFieldsCount = 1;
+            verifyFieldsCount = true;
+
+            switch (field) {
+                case 'tipo_estado':
+                    hasFieldIncorrect = false;
+
+                    if (fields.tipo_estado !== 'ativo') {
+                        expectedFieldsCount = 2;
+
+                        if (!fields.hasOwnProperty('duracao')) {
+                            hasFieldIncorrect = true;
+                            nameFieldIncorrect = 'duracao';
+                        }
+                    }
+                break;
+                default:
+                    nameFieldIncorrect = field;
+            }
         } else {
             expectedFieldsCount = 5;
             verifyFieldsCount = true;
@@ -231,10 +251,6 @@ const verifyFieldIncorrect = (fields: {}, typeMethod: string = 'post', typeReque
             }
         }
     }
-
-    console.log(verifyFieldsCount)
-    console.log(fieldsCount)
-    console.log(expectedFieldsCount)
 
     if (typeMethod !== 'patch' && verifyFieldsCount && fieldsCount > 0 && expectedFieldsCount === fieldsCount) hasFieldIncorrect = false;
 
