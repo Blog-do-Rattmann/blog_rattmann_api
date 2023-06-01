@@ -1,7 +1,17 @@
 import { Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
-import moment from 'moment';
+import { PrismaClient, EstadoConta } from '@prisma/client';
 import argon2 from 'argon2';
+import moment from 'moment';
+
+import 'moment-timezone';
+moment.locale('pt-br');
+moment.tz.setDefault('America/Sao_Paulo');
+moment.relativeTimeThreshold('s', 60);
+moment.relativeTimeThreshold('m', 60);
+moment.relativeTimeThreshold('h', 24);
+moment.relativeTimeThreshold('d', 7);
+moment.relativeTimeThreshold('w', 4);
+moment.relativeTimeThreshold('M', 12);
 
 import {
     exceptionFieldInvalid,
@@ -13,9 +23,10 @@ import {
     validateName,
     validateUsername,
     validateEmail,
-    validateDate,
+    validateBirthday,
     validatePassword,
-    validatePermission
+    validatePermission,
+    validateDate
 } from '../utils/validate';
 
 import {
@@ -31,6 +42,8 @@ import {
     createHistoryUser,
     displayResponseJson
 } from '../utils/middleware';
+
+import { dateFormatAccept } from '../utils/global';
 
 const prisma = new PrismaClient();
 
@@ -109,7 +122,7 @@ const register = async (req: Request, res: Response) => {
             if (!validateData(nome_usuario) || !validateUsername(nome_usuario)) return exceptionFieldInvalid(res, 'Nome de usuário está preenchido incorretamente!');
             if (!validateData(email) || !validateEmail(email)) return exceptionFieldInvalid(res, 'E-mail está preenchido incorretamente!');
             if (!validateData(senha) || !validatePassword(senha)) return exceptionFieldInvalid(res, 'Senha não está no padrão correto!<br\>Precisa de pelo menos 8 caractes, uma letra minúscula, uma maiúscula, um número e um caracter especial.');
-            if (!birthday || !validateDate(birthday)) return exceptionFieldInvalid(res, 'Data de nascimento preenchida incorretamente!');
+            if (!birthday || !validateBirthday(birthday)) return exceptionFieldInvalid(res, 'Data de nascimento preenchida incorretamente!');
             if (dataToken?.permissao === 'admin') {
                 if (!validateData(permissao) || !await validatePermission(permissao)) return exceptionFieldInvalid(res, 'Permissão de acesso selecionada está incorreta!');
                 
@@ -457,7 +470,7 @@ const changePassword = async (req: Request, res: Response) => {
             if (changedPassword !== null) {
                 const id = req.userInfo?.sub;
 
-                await createHistoryUser('trocar_senha', id, changedPassword.id);
+                await createHistoryUser('alterar_senha', id, changedPassword.id);
             }
 
             return changedPassword;
@@ -515,7 +528,24 @@ const changeStatus = async (req: Request, res: Response) => {
     .then(async (response) => {
         await prisma.$disconnect();
 
-        if (response !== null) return displayResponseJson(res, 200, 'Senha alterada com sucesso!');
+        if (response !== null) {
+            let message = 'Usuário agora está ativo!';
+
+            if (response.status !== 'ativo') {
+                let dateUnformatted = response.duration;
+
+                if (dateUnformatted !== null) {
+                    dateUnformatted = dateUnformatted.replace('T', ' ');
+                    dateUnformatted = dateUnformatted.split('.')[0];
+
+                    let date = moment(dateUnformatted).fromNow(true);
+
+                    message = `Usuário agora está ${response.status} por ${date}!`;
+                }
+            }
+
+            return displayResponseJson(res, 200, message);
+        }
     })
     .catch(async (err) => {
         console.error(err);
@@ -537,22 +567,25 @@ const changeStatus = async (req: Request, res: Response) => {
         
         const data = await dataProcessing(user);
 
-        // if (data !== null) {
-        //     const changedPassword = await prisma.usuario.update({
-        //         where: {
-        //             id: idNumber
-        //         },
-        //         data: data
-        //     });
+        if (data !== null) {
+            const changedStatus = await prisma.usuario.update({
+                where: {
+                    id: idNumber
+                },
+                data: {
+                    estado_conta: data.status,
+                    duracao_estado: data.duration
+                }
+            });
 
-        //     if (changedPassword !== null) {
-        //         const id = req.userInfo?.sub;
+            if (changedStatus !== null) {
+                const id = req.userInfo?.sub;
 
-        //         await createHistoryUser('trocar_senha', id, changedPassword.id);
-        //     }
+                await createHistoryUser('alterar_estado_conta', id, changedStatus.id);
 
-        //     return changedPassword;
-        // }
+                return data;
+            }
+        }
 
         return null;
     }
@@ -560,15 +593,12 @@ const changeStatus = async (req: Request, res: Response) => {
     async function dataProcessing(user: any) {
         const fields = req.body;
 
-        const { hasFieldIncorrect, nameFieldIncorrect } = verifyFieldIncorrect(fields, 'put', 'change-status');
-
-        console.log(hasFieldIncorrect)
-        console.log(nameFieldIncorrect)
+        const { hasFieldIncorrect, nameFieldIncorrect } = verifyFieldIncorrect(fields, 'patch', 'change-status');
         
         if (!hasFieldIncorrect) {
             interface IData {
-                tipo_estado: string;
-                duracao?: Date | null;
+                status: EstadoConta;
+                duration: string | null;
             };
 
             const data = {} as IData;
@@ -578,27 +608,26 @@ const changeStatus = async (req: Request, res: Response) => {
                 duracao
             } = fields;
 
-            // if (!validatePassword(senha_atual) || !await argon2.verify(user.senha, senha_atual)) {
-            //     res
-            //     .status(400)
-            //     .send('Senha atual não confere!');
+            if (!EstadoConta.hasOwnProperty(tipo_estado)) return exceptionFieldInvalid(res, 'Estado da conta está preenchido incorretamente!');
 
-            //     return null;
-            // }
+            data.status = tipo_estado;
+            data.duration = null;
 
-            // if (!validatePassword(senha_nova)) {
-            //     res
-            //     .status(400)
-            //     .send('Nova senha não está no padrão correto!<br\>Precisa de pelo menos 8 caractes, uma letra minúscula, uma maiúscula, um número e um caracter especial.');
+            if (tipo_estado !== 'ativo') {
+                if (!validateData(duracao) || !validateDate(duracao)) return exceptionFieldInvalid(res, 'Duração está preenchida incorretamente!');
+                if (!validateDate(duracao, true)) return exceptionFieldInvalid(res, 'Data e hora informadas precisam ser maiores que a data e hora atual!');
 
-            //     return null;
-            // }
+                data.duration = moment(duracao, dateFormatAccept(true))
+                                    .format('YYYY-MM-DD[T]HH:mm:ss.SSS[Z]');
+            }
 
-            // const hashPassword = await argon2.hash(senha_nova);
+            return data;
+        }
 
-            // data.senha = hashPassword;
+        if (nameFieldIncorrect === '') {
+            displayResponseJson(res, 400, 'Nenhum campo foi preenchido!');
 
-            // return data;
+            return null;
         }
 
         displayResponseJson(res, 400, `Campo ${nameFieldIncorrect} não existe!`);

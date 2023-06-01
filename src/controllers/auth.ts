@@ -5,7 +5,16 @@ import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import nodemailer from 'nodemailer';
 import moment from 'moment';
+
 import 'moment-timezone';
+moment.locale('pt-br');
+moment.tz.setDefault('America/Sao_Paulo');
+moment.relativeTimeThreshold('s', 60);
+moment.relativeTimeThreshold('m', 60);
+moment.relativeTimeThreshold('h', 24);
+moment.relativeTimeThreshold('d', 7);
+moment.relativeTimeThreshold('w', 4);
+moment.relativeTimeThreshold('M', 12);
 
 import fs from 'fs';
 import path from 'path';
@@ -218,7 +227,7 @@ const forgotPassword = async (req: Request, res: Response) => {
         const token = crypto.randomBytes(60).toString('hex');
         // Moment converte a data atual de UTC para fuso horário de São Paulo, adiciona 30 minutos e
         // formata para um padrão aceito pelo prisma
-        const timeExpiration = moment().add(30, 'minutes').tz('America/Sao_Paulo').format('YYYY-MM-DD[T]HH:mm:ss.SSS[Z]');
+        const timeExpiration = moment().add(30, 'minutes').format('YYYY-MM-DD[T]HH:mm:ss.SSS[Z]');
 
         const recovery = await prisma.recuperacaoSenha.upsert({
             where: {
