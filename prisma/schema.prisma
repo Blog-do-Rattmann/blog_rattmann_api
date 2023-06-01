@@ -1,0 +1,140 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model Usuario {
+  id Int @id @default(autoincrement())
+  nome String @db.VarChar(100)
+  nome_usuario String @db.VarChar(25) @unique
+  email String @db.VarChar(150) @unique
+  senha String @db.VarChar(255)
+  data_nascimento DateTime @db.Date()
+  estado_conta EstadoConta @default(ativo)
+  duracao_estado DateTime? @db.DateTime()
+  criado_em DateTime @default(dbgenerated("NOW()")) @db.DateTime()
+  permissao_id Int
+  permissao Permissoes @relation(fields: [permissao_id], references: [id])
+  post Post[]
+  comentario Comentario[]
+  historico_login HistoricoLogin[]
+  historico_usuario_autor HistoricoUsuario[] @relation("autor")
+  historico_usuario HistoricoUsuario[]
+  recuperacao_senha RecuperacaoSenha?
+  
+  @@map("usuarios")
+}
+
+model Post {
+  id Int @id @default(autoincrement())
+  titulo String? @db.VarChar(100)
+  conteudo String? @db.MediumText()
+  rascunho Boolean @default(false)
+  exibir Boolean @default(true)
+  data_publicacao DateTime @default(dbgenerated("NOW()")) @db.DateTime()
+  data_edicao DateTime? @default(dbgenerated("NOW()")) @db.DateTime()
+  editado_por String? @db.VarChar(100)
+  autor_id Int
+  autor Usuario @relation(fields: [autor_id], references: [id])
+  categoria Categoria[]
+  comentario Comentario[]
+
+  @@map("posts")
+}
+
+model Categoria {
+  id Int @id @default(autoincrement())
+  nome String @db.VarChar(100)
+  descricao String @db.VarChar(100)
+  publicacao Post[]
+
+  @@map("categorias")
+}
+
+model Comentario {
+  id Int @id @default(autoincrement())
+  conteudo String @db.Text()
+  data_publicacao DateTime @default(dbgenerated("NOW()")) @db.DateTime()
+  data_edicao DateTime? @default(dbgenerated("NOW()")) @db.DateTime()
+  avaliacao Avaliacao[]
+  autor_id Int
+  publicacao_id Int
+  autor Usuario @relation(fields: [autor_id], references: [id])
+  publicacao Post @relation(fields: [publicacao_id], references: [id])
+
+  @@map("comentarios")
+}
+
+model Avaliacao {
+  id Int @id @default(autoincrement())
+  notas Int
+  comentario_id Int
+  comentario Comentario @relation(fields: [comentario_id], references: [id])
+
+  @@map("avaliacoes")
+}
+
+model Permissoes {
+  id Int @id @default(autoincrement())
+  nome String @db.VarChar(30)
+  descricao String @db.TinyText()
+  usuario Usuario[]
+
+  @@map("permissoes")
+}
+
+model HistoricoLogin {
+  id Int @id @default(autoincrement())
+  ip String @db.VarChar(15)
+  login String @db.VarChar(150)
+  usuario_id Int?
+  usuario Usuario? @relation(fields: [usuario_id], references: [id])
+  sucesso Boolean
+  erro String? @db.VarChar(255)
+  data DateTime @default(dbgenerated("NOW()")) @db.DateTime()
+
+  @@map("historico_login")
+}
+
+model HistoricoUsuario {
+  id Int @id @default(autoincrement())
+  acao AcaoUsuario @default(alteracao)
+  data DateTime @default(dbgenerated("NOW()")) @db.DateTime()
+  autor_id Int
+  autor Usuario @relation(fields: [autor_id], references: [id], name: "autor")
+  usuario_id Int
+  usuario Usuario @relation(fields: [usuario_id], references: [id])
+
+  @@map("historico_usuario")
+}
+
+model RecuperacaoSenha {
+  id Int @id @default(autoincrement())
+  token String? @db.VarChar(255)
+  tempo DateTime? @db.DateTime()
+  usuario_id Int @unique
+  usuario Usuario @relation(fields: [usuario_id], references: [id])
+
+  @@map("recuperacao_senha")
+}
+
+enum EstadoConta {
+  ativo
+  inativo
+  banido
+  bloqueado
+}
+
+enum AcaoUsuario {
+  inclusao
+  alteracao
+  alterar_senha
+  alterar_estado_conta
+}
