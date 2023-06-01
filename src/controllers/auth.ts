@@ -59,6 +59,49 @@ const login = async (req: Request, res: Response, next: NextFunction) => {
     });
 
     async function verifyLogin() {
+        let data = await dataProcessing();
+
+        if (data === null) return null;
+
+        let user = data.user;
+        const login = data.login;
+        const senha = data.senha;
+
+        const dataHistory: {
+            login: string,
+            id: number | undefined,
+            success: boolean,
+            error: string | null,
+        } = {
+            login: login,
+            id: undefined,
+            success: false,
+            error: null
+        };
+
+        if (!await validateLogin(dataHistory, user, senha)) {
+            displayResponseJson(res, 400, 'Dados de login estão incorretos!');
+
+            return null;
+        }
+
+        user = await validateStatus(dataHistory, user);
+
+        if (user === null) return null;
+
+        dataHistory.id = user.id;
+        dataHistory.success = true;
+
+        await createHistoryLogin(dataHistory);
+
+        return user;
+    }
+
+    async function dataProcessing(): Promise<{
+        user: any,
+        login: string,
+        senha: string
+    } | null> {
         const fields = req.body;
 
         const { hasFieldIncorrect, nameFieldIncorrect } = verifyFieldIncorrect(fields, 'post', 'login');
@@ -71,18 +114,6 @@ const login = async (req: Request, res: Response, next: NextFunction) => {
 
             if (!validateData(login) || (!validateUsername(login) && !validateEmail(login))) return exceptionFieldInvalid(res, 'E-mail/nome de usuário está preenchido incorretamente!');
             if (!validateData(senha)) return exceptionFieldInvalid(res, 'Senha está preenchida incorretamente!');
-
-            const dataHistory: {
-                login: string,
-                id: number | undefined,
-                success: boolean,
-                error: string | null,
-            } = {
-                login: login,
-                id: undefined,
-                success: false,
-                error: null
-            };
 
             const user = await prisma.usuario.findFirst({
                 where: {
@@ -104,24 +135,68 @@ const login = async (req: Request, res: Response, next: NextFunction) => {
                 }
             });
 
-            if (user === null || !await argon2.verify(user.senha, senha)) {
-                if (user === null) {
-                    dataHistory.error = 'Usuário não encontrado!';
+            return { user, login, senha};
+        }
 
-                    await createHistoryLogin(dataHistory);
-                } else {
-                    dataHistory.id = user.id;
-                    dataHistory.error = 'Senha incorreta!';
+        displayResponseJson(res, 400, `Campo ${nameFieldIncorrect} não existe!`);
 
-                    await createHistoryLogin(dataHistory);
+        return null;
+    }
+
+    async function validateLogin(dataHistory: any, user: any, password: string) {
+        if (user === null) {
+            dataHistory.error = 'Usuário não encontrado!';
+
+            await createHistoryLogin(dataHistory);
+
+            return false;
+        } else if (!await argon2.verify(user.senha, password)) {
+            dataHistory.id = user.id;
+            dataHistory.error = 'Senha incorreta!';
+
+            await createHistoryLogin(dataHistory);
+
+            return false;
+        }
+
+        return true;
+    }
+
+    async function validateStatus(dataHistory: any, user: any) {
+        if (user.estado_conta !== 'ativo') {
+            let permission = false;
+            
+            if (user.duracao_estado !== null) {
+                let dateUnformatted = new Date(user.duracao_estado);
+
+                const now = moment();
+                const date = moment
+                                .utc(dateUnformatted)
+                                .local(true);
+
+                if (now.isAfter(date)) {
+                    permission = true;
+
+                    user = await prisma.usuario.update({
+                        where: {
+                            id: user.id
+                        },
+                        data: {
+                            estado_conta: 'ativo',
+                            duracao_estado: null
+                        },
+                        include: {
+                            permissao: {
+                                select: {
+                                    nome: true
+                                }
+                            }
+                        }
+                    });
                 }
-
-                displayResponseJson(res, 400, 'Dados de login estão incorretos!');
-
-                return null;
             }
 
-            if (user.estado_conta !== 'ativo') {
+            if (!permission) {
                 dataHistory.id = user.id;
                 dataHistory.error = 'Usuário sem permissão de acesso!';
 
@@ -131,18 +206,9 @@ const login = async (req: Request, res: Response, next: NextFunction) => {
 
                 return null;
             }
-
-            dataHistory.id = user.id;
-            dataHistory.success = true;
-
-            await createHistoryLogin(dataHistory);
-
-            return user;
         }
 
-        displayResponseJson(res, 400, `Campo ${nameFieldIncorrect} não existe!`);
-
-        return null;
+        return user;
     }
 }
 
