@@ -1,7 +1,17 @@
 import { Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
-import moment from 'moment';
+import { PrismaClient, EstadoConta } from '@prisma/client';
 import argon2 from 'argon2';
+import moment from 'moment';
+
+import 'moment-timezone';
+moment.locale('pt-br');
+moment.tz.setDefault('America/Sao_Paulo');
+moment.relativeTimeThreshold('s', 60);
+moment.relativeTimeThreshold('m', 60);
+moment.relativeTimeThreshold('h', 24);
+moment.relativeTimeThreshold('d', 7);
+moment.relativeTimeThreshold('w', 4);
+moment.relativeTimeThreshold('M', 12);
 
 import {
     exceptionFieldInvalid,
@@ -13,9 +23,10 @@ import {
     validateName,
     validateUsername,
     validateEmail,
-    validateDate,
+    validateBirthday,
     validatePassword,
-    validatePermission
+    validatePermission,
+    validateDate
 } from '../utils/validate';
 
 import {
@@ -31,6 +42,8 @@ import {
     createHistoryUser,
     displayResponseJson
 } from '../utils/middleware';
+
+import { dateFormatAccept } from '../utils/global';
 
 const prisma = new PrismaClient();
 
@@ -109,7 +122,7 @@ const register = async (req: Request, res: Response) => {
             if (!validateData(nome_usuario) || !validateUsername(nome_usuario)) return exceptionFieldInvalid(res, 'Nome de usuário está preenchido incorretamente!');
             if (!validateData(email) || !validateEmail(email)) return exceptionFieldInvalid(res, 'E-mail está preenchido incorretamente!');
             if (!validateData(senha) || !validatePassword(senha)) return exceptionFieldInvalid(res, 'Senha não está no padrão correto!<br\>Precisa de pelo menos 8 caractes, uma letra minúscula, uma maiúscula, um número e um caracter especial.');
-            if (!birthday || !validateDate(birthday)) return exceptionFieldInvalid(res, 'Data de nascimento preenchida incorretamente!');
+            if (!birthday || !validateBirthday(birthday)) return exceptionFieldInvalid(res, 'Data de nascimento preenchida incorretamente!');
             if (dataToken?.permissao === 'admin') {
                 if (!validateData(permissao) || !await validatePermission(permissao)) return exceptionFieldInvalid(res, 'Permissão de acesso selecionada está incorreta!');
                 
@@ -457,7 +470,7 @@ const changePassword = async (req: Request, res: Response) => {
             if (changedPassword !== null) {
                 const id = req.userInfo?.sub;
 
-                await createHistoryUser('trocar_senha', id, changedPassword.id);
+                await createHistoryUser('alterar_senha', id, changedPassword.id);
             }
 
             return changedPassword;
@@ -510,11 +523,125 @@ const changePassword = async (req: Request, res: Response) => {
     }
 }
 
+const changeStatus = async (req: Request, res: Response) => {
+    await updateStatus()
+    .then(async (response) => {
+        await prisma.$disconnect();
+
+        if (response !== null) {
+            let message = 'Usuário agora está ativo!';
+
+            if (response.status !== 'ativo') {
+                let dateUnformatted = response.duration;
+
+                if (dateUnformatted !== null) {
+                    dateUnformatted = dateUnformatted.replace('T', ' ');
+                    dateUnformatted = dateUnformatted.split('.')[0];
+
+                    let date = moment(dateUnformatted).fromNow(true);
+
+                    message = `Usuário agora está ${response.status} por ${date}!`;
+                }
+            }
+
+            return displayResponseJson(res, 200, message);
+        }
+    })
+    .catch(async (err) => {
+        console.error(err);
+        await prisma.$disconnect();
+
+        return displayResponseJson(res, 500);
+    });
+
+    async function updateStatus() {
+        const { id } = req.params;
+        const dataToken = req.userInfo?.data;
+
+        const getIdVerified = await verifyIdTokenOrUser(res, dataToken, id, req.userInfo);
+
+        if (getIdVerified === null) return null;
+
+        const idNumber = getIdVerified.idNumber;
+        const user = getIdVerified.user;
+        
+        const data = await dataProcessing(user);
+
+        if (data !== null) {
+            const changedStatus = await prisma.usuario.update({
+                where: {
+                    id: idNumber
+                },
+                data: {
+                    estado_conta: data.status,
+                    duracao_estado: data.duration
+                }
+            });
+
+            if (changedStatus !== null) {
+                const id = req.userInfo?.sub;
+
+                await createHistoryUser('alterar_estado_conta', id, changedStatus.id);
+
+                return data;
+            }
+        }
+
+        return null;
+    }
+
+    async function dataProcessing(user: any) {
+        const fields = req.body;
+
+        const { hasFieldIncorrect, nameFieldIncorrect } = verifyFieldIncorrect(fields, 'patch', 'change-status');
+        
+        if (!hasFieldIncorrect) {
+            interface IData {
+                status: EstadoConta;
+                duration: string | null;
+            };
+
+            const data = {} as IData;
+
+            const {
+                tipo_estado,
+                duracao
+            } = fields;
+
+            if (!EstadoConta.hasOwnProperty(tipo_estado)) return exceptionFieldInvalid(res, 'Estado da conta está preenchido incorretamente!');
+
+            data.status = tipo_estado;
+            data.duration = null;
+
+            if (tipo_estado !== 'ativo') {
+                if (!validateData(duracao) || !validateDate(duracao)) return exceptionFieldInvalid(res, 'Duração está preenchida incorretamente!');
+                if (!validateDate(duracao, true)) return exceptionFieldInvalid(res, 'Data e hora informadas precisam ser maiores que a data e hora atual!');
+
+                data.duration = moment(duracao, dateFormatAccept(true))
+                                    .format('YYYY-MM-DD[T]HH:mm:ss.SSS[Z]');
+            }
+
+            return data;
+        }
+
+        if (nameFieldIncorrect === '') {
+            displayResponseJson(res, 400, 'Nenhum campo foi preenchido!');
+
+            return null;
+        }
+
+        displayResponseJson(res, 400, `Campo ${nameFieldIncorrect} não existe!`);
+
+        return null;
+    }
+}
+
 export default {
     register,
     profile,
     list,
     update,
     remove,
-    changePassword
+    changePassword,
+    changeStatus
 }

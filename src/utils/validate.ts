@@ -1,6 +1,18 @@
 import { PrismaClient } from '@prisma/client';
 import moment from 'moment';
 
+import 'moment-timezone';
+moment.locale('pt-br');
+moment.tz.setDefault('America/Sao_Paulo');
+moment.relativeTimeThreshold('s', 60);
+moment.relativeTimeThreshold('m', 60);
+moment.relativeTimeThreshold('h', 24);
+moment.relativeTimeThreshold('d', 7);
+moment.relativeTimeThreshold('w', 4);
+moment.relativeTimeThreshold('M', 12);
+
+import { dateFormatAccept } from '../utils/global';
+
 const prisma = new PrismaClient();
 
 const validateData = (value: any) => {
@@ -29,7 +41,7 @@ const validateEmail = (email: string) => {
     return false;
 }
 
-const validateDate = (date: any) => {
+const validateBirthday = (date: any) => {
     const birthday = moment(date).utc().format('YYYY-MM-DD');
     const dateNow = moment().subtract(100, 'years').format('YYYY-MM-DD');
 
@@ -60,12 +72,35 @@ const validatePermission = async (permission: string) => {
     return true;
 }
 
+const validateDate = (date: any, validateBefore: boolean = false, dateCompare: any = null) => {
+    if (date !== null) {
+        const dateConverted = moment(date, dateFormatAccept(true));
+
+        if (validateBefore) {
+            let dateCompareConverted = moment();
+
+            if (dateCompare !== null) dateCompareConverted = moment(dateCompare, dateFormatAccept(true));
+            
+            if (dateConverted.isValid() && dateCompareConverted.isValid()) {
+                if (dateConverted.isSameOrAfter(dateCompareConverted)) return true;
+            }
+
+            return false;
+        }
+
+        if (dateConverted.isValid()) return true;
+    }
+
+    return false;
+}
+
 export {
     validateData,
     validateName,
     validateUsername,
     validateEmail,
-    validateDate,
+    validateBirthday,
     validatePassword,
-    validatePermission
+    validatePermission,
+    validateDate
 }
