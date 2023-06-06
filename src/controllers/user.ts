@@ -43,7 +43,10 @@ import {
     displayResponseJson
 } from '../utils/middleware';
 
-import { dateFormatAccept } from '../utils/global';
+import {
+    dateFormatAccept,
+    validatePagination
+} from '../utils/global';
 
 const prisma = new PrismaClient();
 
@@ -236,10 +239,15 @@ const list = async (req: Request, res: Response) => {
 
     async function showList() {
         const dataToken = req.userInfo?.data;
+        
+        const { paginas, quantidade } = req.params;
+        const { pages, quantity } = validatePagination(paginas, quantidade);
 
         if (!verifyPermissionUserToken(dataToken, 'admin')) return null;
 
         const users = prisma.usuario.findMany({
+            skip: pages,
+            take: quantity,
             include: {
                 permissao: true
             }
